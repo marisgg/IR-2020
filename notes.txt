@@ -6,3 +6,4 @@
 
 # 4 - Indexing
 
+Usually queries that are to be processed are more than one term. Then, if you have all the postings list in sorted order, you can enable more intelligent query processing. 
