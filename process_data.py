@@ -4,6 +4,7 @@ import timeit
 import os.path
 
 def process_data():
+    all_texts = []
     with open('metadata.csv', encoding="utf-8") as f_in:
         reader = csv.DictReader(f_in)
         for row in reader:
@@ -42,7 +43,7 @@ def process_data():
                 'abstract': abstract,
                 'introduction': introduction
             }
-
+    print(cord_uid_to_text)
     return cord_uid_to_text
 
 print(timeit.timeit(process_data, number=1))
