@@ -88,6 +88,7 @@ def preprocessing(data):
 	
 	# Create new dictionary with processed input
 	processed_input = {}
+	processed_between = {}
 	for docuid, body in data.items():		
 		for seg, text in body.items():
 			if not text or text=="":
@@ -104,16 +105,10 @@ def preprocessing(data):
 			lemmatized_data = lemmatize(removed_single_characters)
 			stemmed_data = stem(lemmatized_data)
 
-			print(stemmed_data)
-			
-
-
-			#processed_input[key2] = 
-
-
-		#processed_input[key] = value
-	# change characters to lowercase letters
+			processed_between[seg] = stemmed_data
+		processed_input[docuid] = processed_between
 
 	return processed_input
 
 processed_data = preprocessing(test_input)
+print(processed_data)
