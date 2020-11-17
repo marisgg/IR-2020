@@ -109,6 +109,3 @@ def preprocessing(data):
 		processed_input[docuid] = processed_between
 
 	return processed_input
-
-processed_data = preprocessing(test_input)
-print(processed_data)
