@@ -32,44 +32,32 @@ def filter_stopwords(data):
 	filtered_sentence = [w for w in data if not w in stop_words] 
 	return filtered_sentence
 
-def remove_punctuation(data):
+def remove_punctuation(word):
 	symbols = "!\"#$%&()*+-./:;<=>?@[\]^_`{|}~\n"
-	new_data = []
-	for word in data:
-		for i in symbols:
-			between_word = np.char.replace(word, i, '')
-			new_word = np.char.replace(between_word, "'", "")
-		new_data.append(new_word)
-	return new_data
+	for i in symbols:
+		between_word = np.char.replace(word, i, '')
+		new_word = np.char.replace(between_word, "'", "")
+	return new_word
 
-def remove_single_characters(data):
-	new_data = []
-	for word in data:
-		if len(str(word)) > 1:
-			new_data.append(str(word))
-	return new_data
+'''def remove_single_characters(word):
+	if len(str(word)) > 1:
+		new_data.append(str(word))
+	return new_data'''
 
 #nltk.download('wordnet')
-def lemmatize(data):
-	lemmatizer = WordNetLemmatizer()
+def lemmatize(data, lemmatizer):
+	
 	new_data = []
 	for word in data:
 		new_data.append(lemmatizer.lemmatize(word))
 	return (new_data)
 
-def stem(data):
-	new_data = []
-	stemmer = PorterStemmer()
-	for word in data:
-		new_data.append(stemmer.stem(word))
-	return(new_data)
+def stem(word, stemmer):
+	return(stemmer.stem(word))
 
-def remove_numbers(data):
-	new_data = []
-	for word in data:
-		result = ''.join(i for i in word if not i.isdigit())
-		new_data.append(result)
-	return new_data
+def remove_numbers(word):
+	result = ''.join(i for i in word if not i.isdigit())
+	return result
 
 def preprocessing(data):
 	"""
@@ -89,6 +77,11 @@ def preprocessing(data):
 	# Create new dictionary with processed input
 	processed_input = {}
 	processed_between = {}
+
+	# initialize stemmer and lemmatizer
+	stemmer = PorterStemmer()
+	lemmatizer = WordNetLemmatizer()
+
 	for docuid, body in data.items():		
 		for seg, text in body.items():
 			if not text or text=="":
@@ -99,15 +92,19 @@ def preprocessing(data):
 			lower_value = np.char.lower(split_value)
 			removed_stopwords = filter_stopwords(lower_value)
 
-			removed_numbers = remove_numbers(removed_stopwords)
+			# Following functions can be done within one loop instead of executing each function independently
 			# TODO:  check punctuation removal order
-			removed_punctuation = remove_punctuation(removed_numbers)
-			removed_single_characters = remove_single_characters(removed_punctuation)
 
-			lemmatized_data = lemmatize(removed_single_characters)
-			stemmed_data = stem(lemmatized_data)
-
-			processed_between[seg] = stemmed_data
+			preprocessed_data = []
+			for word in removed_stopwords:
+				no_numbers = remove_numbers(word)
+				no_punctuation = remove_punctuation(no_numbers)
+				if  len(str(word)) <= 1:
+					continue
+				lemmatized = lemmatizer.lemmatize(str(no_punctuation))
+				stemmed = stemmer.stem(lemmatized)
+				preprocessed_data.append(stemmed)
+			processed_between[seg] = preprocessed_data
 		processed_input[docuid] = processed_between
 
 	return processed_input
