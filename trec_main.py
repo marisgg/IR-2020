@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+
+import argparse
 from timeit import Timer
 from process_data import process_data
 from preprocess_data_optimized import preprocessing
+import index_trec
 
 test_input = {
 	'3bmaswia': {'title': 'Infectious diseases: a call for manuscripts in an interdisciplinary era', 'abstract': '', 'introduction': []},
@@ -10,17 +14,19 @@ test_input = {
 	'hfvcv2dw': {'title': 'Detection of Viral and Bacterial Pathogens in Hospitalized Children With Acute Respiratory Illnesses, Chongqing, 2009–2013', 'abstract': "Acute respiratory infections (ARIs) cause large disease burden each year. The codetection of viral and bacterial pathogens is quite common; however, the significance for clinical severity remains controversial. We aimed to identify viruses and bacteria in hospitalized children with ARI and the impact of mixed detections. Hospitalized children with ARI aged ≤16 were recruited from 2009 to 2013 at the Children's Hospital of Chongqing Medical University, Chongqing, China. Nasopharyngeal aspirates (NPAs) were collected for detection of common respiratory viruses by reverse transcription polymerase chain reaction (RT-PCR) or PCR. Bacteria were isolated from NPAs by routine culture methods. Detection and codetection frequencies and clinical features and severity were compared. Of the 3181 hospitalized children, 2375 (74.7%) were detected with ≥1 virus and 707 (22.2%) with ≥1 bacteria, 901 (28.3%) with ≥2 viruses, 57 (1.8%) with ≥2 bacteria, and 542 (17.0%) with both virus and bacteria. The most frequently detected were Streptococcus pneumoniae, respiratory syncytial virus, parainfluenza virus, and influenza virus. Clinical characteristics were similar among different pathogen infections for older group (≥6 years old), with some significant difference for the younger. Cases with any codetection were more likely to present with fever; those with ≥2 virus detections had higher prevalence of cough; cases with virus and bacteria codetection were more likely to have cough and sputum. No significant difference in the risk of pneumonia, severe pneumonia, and intensive care unit admission were found for any codetection than monodetection. There was a high codetection rate of common respiratory pathogens among hospitalized pediatric ARI cases, with fever as a significant predictor. Cases with codetection showed no significant difference in severity than those with single pathogens.", 'introduction': []}
 }
 
-def main():
-    input_data = process_data('metadata.csv')
-    #input_data = process_data(test_input)
-    
-    #first_key = next(iter(input_data))
-    #processed_data = preprocessing(input_data)
-    #print(processed_data)
-    
-    t = Timer(lambda: preprocessing(input_data))
-    print(t.timeit(number=1))
-    
+def score_query(query, docid):
+	scores = []
+	for term in query.split():
+		scores.append(index_trec.tf_idf_term(term, docid))
+	return scores
 
+def main():
+	parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
+	parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
+	parser.add_argument('query')
+	args = parser.parse_args()
+	query = args.query
+	print(score_query(query, index_trec.get_docid()))
+  
 if __name__ == "__main__":
     main()

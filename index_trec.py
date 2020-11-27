@@ -1,7 +1,7 @@
 from pyserini import analysis, index
 import itertools
 from pyserini.search import SimpleSearcher
-import math 
+import math
 
 index_reader = index.IndexReader('lucene-index-cord19-abstract-2020-07-16')
 
@@ -55,47 +55,46 @@ doc_vector = index_reader.get_document_vector(test_docid)
 tf = index_reader.get_document_vector(test_docid)
 df = {term: (index_reader.get_term_counts(term, analyzer=None))[0] for term in tf.keys()} 
 
-print(f'tf: {tf}')
-print(f'df: {df}')
+def get_docid():
+    # First find docids within the prebuild index
+    searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
+    hits = searcher.search('lung')
+    # Print the first 10 hits:
+    for i in range(0, 10):
+        print(f'{i+1:2} {hits[i].docid:15} {hits[i].score:.5f}')
+    test_docid = hits[0].docid
+    return test_docid
 
-# --> Combine to get tf-idf score
-# TO DO
-tf_idf = {}
-for key, value in tf.items():
-    idf = math.log(total_documents / df[key])
-    tf_idf[key] = tf[key]*idf
-
-print(f'tf-idf dictionary: \n {tf_idf}')
-
-# Note that the keys of get_document_vector() are already analyzed, we set analyzer to be None.
-#bm25_score = index_reader.compute_bm25_term_weight(test_docid, 'lung', analyzer=None)
-#print(f'bm25 score for "lung" in {test_docid}: {bm25_score})
-
-# Alternatively, we pass in the unanalyzed term:
-bm25_score = index_reader.compute_bm25_term_weight(test_docid, 'lung')
-print(f'bm25 score for "lung" in {test_docid}: {bm25_score}')
-
-# Compute the score of a specific document w.r.t. a query
-query = 'covid-19 symptoms'
-for i in range(10):
-    score = index_reader.compute_query_document_score(hits[i].docid, query)
-    print(f'{i+1:2} {hits[i].docid:15} {score:.5f}')
+# print(f'tf: {tf}')
+# print(f'df: {df}')
 
 
+N = total_documents = index_reader.stats()['documents']
+"""
+Compute TF-IDF, which consists of the following two components:
+1. Term frequency: measures the frequency of a word in a document, normalize.
+    tf(t,d) = count of t in d / number of words in d
+2. Inverse document frequency: measures the informativeness of term t.
+    idf(t) = log(N / (df + 1)               (df = occurences of t in documents)
 
+The resulting formula: tf-idf(t,d) = tf(t,d)*log(N/(df+1))
 
+INPUT:		Dictionary, with for each file a sub-dictionary containing the title, abstract, and introduction.
+OUTPUT:		
+"""
+def tf_idf_term(term, docid):
+    # TODO: tf should be divided by number of words in docid
+    tf = index_reader.get_document_vector(docid)[term]
+    df = index_reader.get_term_counts(term, analyzer=None)[0]
+    return tf * math.log(N / (df + 1))
 
-'''# Get to know the positions of each term in the document
-# function get_term_positions('XXXX') is not an attribute apparently?
+def tf_idf_docid(docid):
+    doc_vector = index_reader.get_document_vector(docid)
+    tf_idf = {}
+    for term, count in doc_vector.items():
+        df = index_reader.get_term_counts(term, analyzer=None)[0]
+        tf_idf[term] = count * math.log(N / (df + 1))
+    return tf_idf
 
-term_positions = index_reader.get_term_position('FBIS4-67701')
-print(term_positions)
-
-# If you want to reconstruct the document using the position information
-doc = []
-for term, positions in term_positions.items():
-    for p in positions:
-        doc.append((term,p))
-
-doc = ' '.join([t for t, p in sorted(doc, key=lambda x: x[1])])
-print(doc)'''
+def tf_idf():
+    pass
