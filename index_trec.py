@@ -59,7 +59,11 @@ def get_docids(term, max_doc=10):
     # First find docids within the prebuild index
     searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
     hits = searcher.search(term)
-    return hits[:max_doc]
+    hits_docid = []
+    for i in range(max_doc):
+        hits_docid.append(hits[i].docid)
+
+    return hits_docid
 
 # print(f'tf: {tf}')
 # print(f'df: {df}')
@@ -80,9 +84,13 @@ OUTPUT:
 """
 def tf_idf_term(term, docid):
     # TODO: tf should be divided by number of words in docid
-    tf = index_reader.get_document_vector(docid)[term]
-    df = index_reader.get_term_counts(term, analyzer=None)[0]
-    return tf * math.log(N / (df + 1))
+    tfs = index_reader.get_document_vector(docid)
+    if term in tfs:
+        tf = tfs[term]
+        df = index_reader.get_term_counts(term, analyzer=None)[0]
+        return tf * math.log(N / (df + 1))
+    else: 
+        return 0
 
 def tf_idf_docid(docid):
     doc_vector = index_reader.get_document_vector(docid)

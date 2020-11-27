@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import argparse
 from timeit import Timer
 from process_data import process_data
@@ -19,27 +18,39 @@ def score_query(query, docids=None):
 	docs = []
 	scores = []
 
+	# TODO: Get documents in which percentage of query terms exist? 
+	"""
+	Ik stel het volgende voor (zonder onderbouwing verder): als query > 3 woorden bevat, kijken we
+	naar documenten waarin minimaal 2 woorden zitten? (50%)
+	--> Iig moeten we hier iets voor bedenken denk ik.
+	"""
+
 	for term in query.split():
 		for doc in index_trec.get_docids(term):
 			docs.append(doc)
 	
 	for doc in docs:
+		score = 0
 		for term in query.split():
-			scores.append(index_trec.tf_idf_term(term, doc))
-		doc_scores[doc] = scores
+			score += index_trec.tf_idf_term(term, doc)
+		doc_scores[doc] = score
 
-	return doc_scores
+	ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
+	return ordered_doc_scores
+
 
 def main():
 	parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
-	parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
-	parser.add_argument('query')
+	parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=True)
+	parser.add_argument('-query', default="covid symptoms")
 	args = parser.parse_args()
 	query = args.query
 
-	for docid, scores in score_query(query):
-		print(docid)
-		print(scores)
+	print("\nDocument - Score")
+	for docid, score in score_query(query).items():
+		print(f"{docid} : {score}")
+
+	
   
 if __name__ == "__main__":
     main()
