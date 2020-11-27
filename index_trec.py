@@ -55,15 +55,11 @@ doc_vector = index_reader.get_document_vector(test_docid)
 tf = index_reader.get_document_vector(test_docid)
 df = {term: (index_reader.get_term_counts(term, analyzer=None))[0] for term in tf.keys()} 
 
-def get_docid():
+def get_docids(term, max_doc=10):
     # First find docids within the prebuild index
     searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
-    hits = searcher.search('lung')
-    # Print the first 10 hits:
-    for i in range(0, 10):
-        print(f'{i+1:2} {hits[i].docid:15} {hits[i].score:.5f}')
-    test_docid = hits[0].docid
-    return test_docid
+    hits = searcher.search(term)
+    return hits[:max_doc]
 
 # print(f'tf: {tf}')
 # print(f'df: {df}')
