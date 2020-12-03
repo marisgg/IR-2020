@@ -4,6 +4,7 @@ from timeit import Timer
 from process_data import process_data
 from preprocess_data_optimized import preprocessing
 import index_trec
+from output import write_output
 
 test_input = {
 	'3bmaswia': {'title': 'Infectious diseases: a call for manuscripts in an interdisciplinary era', 'abstract': '', 'introduction': []},
@@ -48,6 +49,9 @@ def main():
 
 	print("\nDocument - Score")
 	for docid, score in score_query(query).items():
+		if(docid == "reverse"):
+			continue
+		write_output(0, docid, 0, score, "test")
 		print(f"{docid} : {score}")
 
 	
