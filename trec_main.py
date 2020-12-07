@@ -5,6 +5,7 @@ from process_data import process_data
 from preprocess_data_optimized import preprocessing
 import index_trec
 from output import write_output
+import json
 import xml.etree.ElementTree as ET
 
 def parse_topics(topicsfilename):
@@ -21,6 +22,16 @@ def parse_topics(topicsfilename):
             topics[topic_number]["narrative"] = narrative.text
     return topics
 
+def write_topics_to_json(filename):
+    topics = parse_topics(filename)
+    with open("topics.json", "w+") as outfile:
+        json.dump(topics, outfile)
+
+def read_json_topics(filename):
+    with open(filename, "r") as infile:
+        topics = json.load(infile)
+        return topics
+
 def score_query(query, docids=None):
     doc_scores = {}
     docs = []
@@ -34,6 +45,7 @@ def score_query(query, docids=None):
     """
 
     for term in query.split():
+        print(term)
         for doc in index_trec.get_docids(term):
             docs.append(doc)
 
@@ -51,10 +63,15 @@ def main():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=True)
     parser.add_argument('-query', default="covid symptoms")
+    parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
     args = parser.parse_args()
     query = args.query
 
-    topics = parse_topics("topics-rnd5.xml")
+    if args.json:
+        # only need to do this once, program small MD5 or something
+        write_topics_to_json("topics-rnd5.xml")
+
+    topics = read_json_topics("topics.json")
 
     for idx in range(1, 50):
         for docid, score in score_query(topics[str(idx)]["query"]).items():
