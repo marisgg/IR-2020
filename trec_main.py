@@ -4,8 +4,10 @@ from timeit import Timer
 from process_data import process_data
 from preprocess_data_optimized import preprocessing
 import index_trec
-from output import write_output
+import output
+import json
 import xml.etree.ElementTree as ET
+import numpy as np
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -21,9 +23,19 @@ def parse_topics(topicsfilename):
             topics[topic_number]["narrative"] = narrative.text
     return topics
 
+def write_topics_to_json(filename):
+    topics = parse_topics(filename)
+    with open("topics.json", "w+") as outfile:
+        json.dump(topics, outfile)
+
+def read_json_topics(filename):
+    with open(filename, "r") as infile:
+        topics = json.load(infile)
+        return topics
+
 def score_query(query, docids=None):
     doc_scores = {}
-    docs = []
+    docs = set()
     scores = []
 
     # TODO: Get documents in which percentage of query terms exist? 
@@ -34,13 +46,19 @@ def score_query(query, docids=None):
     """
 
     for term in query.split():
-        for doc in index_trec.get_docids(term):
-            docs.append(doc)
-
-    for doc in docs:
+        postings = index_trec.get_docids_from_postings(term)
+        docs |= postings
+        if(verbose):
+            print(term)
+            print(len(docs))
+    count = 0
+    for doc in list(docs):
         score = 0
         for term in query.split():
             score += index_trec.tf_idf_term(term, doc)
+            count += 1
+            if(verbose and count % 1000 == 0):
+                print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query.split())))
         doc_scores[doc] = score
 
     ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
@@ -49,18 +67,27 @@ def score_query(query, docids=None):
 
 def main():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
-    parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=True)
+    parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
     parser.add_argument('-query', default="covid symptoms")
+    parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
+    parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", default=1)
     args = parser.parse_args()
     query = args.query
+    global verbose
+    verbose = args.verbose
 
-    topics = parse_topics("topics-rnd5.xml")
+    if args.json:
+        # only need to do this once, program small MD5 or something
+        write_topics_to_json("topics-rnd5.xml")
 
-    for idx in range(1, 50):
+    topics = read_json_topics("topics.json")
+
+    output.clear_output()
+    for idx in range(1, min(args.n_queries+1, 50)):
         for docid, score in score_query(topics[str(idx)]["query"]).items():
             if(docid == "reverse"):
                 continue
-            write_output(idx, docid, -1, score, topics[str(idx)]["query"])
+            output.write_output(idx, docid, -1, score, topics[str(idx)]["query"])
   
 if __name__ == "__main__":
     main()

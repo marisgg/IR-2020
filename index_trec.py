@@ -4,6 +4,7 @@ from pyserini.search import SimpleSearcher
 import math
 
 index_reader = index.IndexReader('lucene-index-cord19-abstract-2020-07-16')
+searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
 
 def tutorial_code():
     # Access basic index statistics
@@ -56,9 +57,21 @@ def tutorial_code():
     tf = index_reader.get_document_vector(test_docid)
     df = {term: (index_reader.get_term_counts(term, analyzer=None))[0] for term in tf.keys()} 
 
-def get_docids(term, max_doc=10):
+""" gets ALL docids by default order until the max_doc limit (defaults to num_docs) """
+def get_docids(term, max_doc=192459):
+    return [searcher.doc(i).docid() for i in range(searcher.num_docs)]
+
+""" Use postings and set union to get list of documents containing query words """
+def get_docids_from_postings(term, max_doc=192459):
+    return set([searcher.doc(posting.docid).docid() for posting in index_reader.get_postings_list(term)])
+
+""" Don't use in production, overly complex """
+def term_in_doc(term, docid):
+    return docid in searcher.search(term)
+
+
+def get_docids_with_search(term, max_doc=10):
     # First find docids within the prebuild index
-    searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
     hits = searcher.search(term)
     hits_docid = []
     for i in range(min(len(hits), max_doc)):
@@ -66,11 +79,19 @@ def get_docids(term, max_doc=10):
 
     return hits_docid
 
+""" Hacky: Sum all term frequencies in document vector (thus no stopwords) """
+def get_n_of_words_in_docid(docid):
+    return sum(index_reader.get_document_vector(docid).values())
+
 # print(f'tf: {tf}')
 # print(f'df: {df}')
 
 
 N = total_documents = index_reader.stats()['documents']
+""" Sanity check """
+assert(searcher.num_docs == N)
+
+
 """
 Compute TF-IDF, which consists of the following two components:
 1. Term frequency: measures the frequency of a word in a document, normalize.
