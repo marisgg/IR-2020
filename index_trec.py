@@ -23,6 +23,7 @@ class Index:
                     return_set |= docid
                 except:
                     continue
+            return return_set
         return set([self.searcher.doc(posting.docid).docid() for posting in self.index_reader.get_postings_list(term) if posting.docid ])
 
     def term_in_doc(self, term, docid) -> bool:
