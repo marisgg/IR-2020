@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import sys
 from pyserini.index import IndexReader
 from pyserini.search import SimpleSearcher
-from output import Output
+from output import write_output
 from models import Models
 from index_trec import Index
 
@@ -110,15 +110,17 @@ def main():
 
     topics = read_json_topics("topics.json")
     # pytrec_dict = {}
-    output = Output("ranking.txt")
-    for idx in range(1, min(args.n_queries+1, 50)):
-        for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models).items():
-            if docid == "reverse":
-                continue
-            # pytrec_dict.update(pytrec_dictionary_entry(idx, docid, score))
-            output.write_output(idx, docid, -1, score, topics[str(idx)]["query"])
-    # print(pytrec_dict)
-    output.close()
+    try:
+        with open("ranking.txt", 'w') as outfile:
+            for idx in range(1, min(args.n_queries+1, 50)):
+                for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models).items():
+                    if docid == "reverse":
+                        continue
+                    # pytrec_dict.update(pytrec_dictionary_entry(idx, docid, score))
+                    outfile.write(write_output(idx, docid, -1, score, topics[str(idx)]["query"]))
+            # print(pytrec_dict)
+    finally:
+        outfile.close()
 
 if __name__ == "__main__":
     main()
