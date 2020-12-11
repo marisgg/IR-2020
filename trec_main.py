@@ -73,8 +73,8 @@ def score_query(query, model, index_class, models_class):
                 print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query)))
         doc_scores[doc] = score
 
-    # Take the top 1000 for output writing
-    ordered_doc_scores = dict(itertools.islice(dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True), 1000))
+    # TODO: Take the top 1000 for output writing
+    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
     return ordered_doc_scores
 
 def pytrec_dictionary_entry(qid, docid, score):

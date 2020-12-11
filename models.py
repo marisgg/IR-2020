@@ -25,17 +25,17 @@ class Models:
     OUTPUT:     
     """
 
-    def tf_idf_term(self, term, docid):
+    def tf_idf_term(self, term, docid) -> float:
         tfs = self.index_reader.get_document_vector(docid)
         if term in tfs:
             tf = tfs[term]/self.get_n_of_words_in_docid(docid)
             df = self.index_reader.get_term_counts(term, analyzer=None)[0]
             return tf * math.log(self.N / (df + 1))
         else:
-            return 0
+            return 0.0
 
 
-    def tf_idf_docid(self, docid):
+    def tf_idf_docid(self, docid) -> {}:
         tfs = self.index_reader.get_document_vector(docid)
         tf_idf = {}
         for term, count in tfs.items():
@@ -43,10 +43,10 @@ class Models:
             tf_idf[term] = count/self.get_n_of_words_in_docid(docid) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
-    def bm25_term(self, term, docid):
+    def bm25_term(self, term, docid) -> float:
         return self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None)
 
-    def bm25_docid(self, docid):
+    def bm25_docid(self, docid) -> {}:
         """ get all terms in documents """
         tfs = self.index_reader.get_document_vector(docid)
         bm25_vector = {term: self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in tfs.keys()}
