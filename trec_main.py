@@ -9,6 +9,7 @@ from pyserini.search import SimpleSearcher
 from output import write_output
 from models import Models
 from index_trec import Index
+from progress.bar import Bar
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -49,7 +50,7 @@ def score_query(query, model, index_class, models_class):
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
     for term in query:
-        postings = index_class.get_docids_from_postings(term)
+        postings = index_class.get_docids_from_postings(term, debug=False)
         docs |= postings
         if verbose:
             print(term)
@@ -58,6 +59,7 @@ def score_query(query, model, index_class, models_class):
     count = 0
     if verbose:
         print(query)
+        bar = Bar("Computing scores for query", max=(len(list(docs))*len(query))/1000)
     for doc in list(docs):
         score = 0
         for term in query:
@@ -70,9 +72,11 @@ def score_query(query, model, index_class, models_class):
                 sys.exit(1)
             count += 1
             if verbose and count % 1000 == 0:
-                print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query)))
-        doc_scores[doc] = score
-
+                bar.next()
+        if score > 0:
+            doc_scores[doc] = score
+    if verbose:
+        bar.finish()
     # TODO: Take the top 1000 for output writing
     ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
     return ordered_doc_scores
