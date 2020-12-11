@@ -91,7 +91,7 @@ def main():
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
     parser.add_argument('-query', default="covid symptoms")
     parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
-    parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", default=1)
+    parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=1)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     args = parser.parse_args()
     query = args.query
