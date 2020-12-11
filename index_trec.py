@@ -15,12 +15,13 @@ class Index:
         """ Use postings and set union to get list of documents containing query words """
         if debug:
             return_set = set()
-            for posting in self.index_reader.get_postings_list(term):
+            postings = self.index_reader.get_postings_list(term)
+            for posting in postings:
                 try:
                     docnum = posting.docid
                     doc = self.searcher.doc(docnum)
                     docid = doc.docid()
-                    return_set |= docid
+                    return_set |= set([docid])
                 except:
                     continue
             return return_set
