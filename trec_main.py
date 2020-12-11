@@ -8,6 +8,7 @@ import output
 import json
 import xml.etree.ElementTree as ET
 import numpy as np
+import models
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -33,7 +34,7 @@ def read_json_topics(filename):
         topics = json.load(infile)
         return topics
 
-def score_query(query, docids=None):
+def score_query(query, model):
     doc_scores = {}
     docs = set()
     scores = []
@@ -44,18 +45,24 @@ def score_query(query, docids=None):
     naar documenten waarin minimaal 2 woorden zitten? (50%)
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
-
     for term in query.split():
         postings = index_trec.get_docids_from_postings(term)
         docs |= postings
         if(verbose):
             print(term)
             print(len(docs))
+    
     count = 0
     for doc in list(docs):
         score = 0
         for term in query.split():
-            score += index_trec.tf_idf_term(term, doc)
+            #score += index_trec.tf_idf_term(term, doc)
+            if model == "bm25":
+                score += models.bm25_term(term, doc)
+            elif model == "tf_idf":
+                score += models.tf_idf_term(term, doc)
+            else:
+                print("No model found")
             count += 1
             if(verbose and count % 1000 == 0):
                 print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query.split())))
@@ -71,10 +78,12 @@ def main():
     parser.add_argument('-query', default="covid symptoms")
     parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
     parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", default=1)
+    parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     args = parser.parse_args()
     query = args.query
     global verbose
     verbose = args.verbose
+    model = args.model
 
     if args.json:
         # only need to do this once, program small MD5 or something
@@ -84,7 +93,7 @@ def main():
 
     output.clear_output()
     for idx in range(1, min(args.n_queries+1, 50)):
-        for docid, score in score_query(topics[str(idx)]["query"]).items():
+        for docid, score in score_query(topics[str(idx)]["query"], model).items():
             if(docid == "reverse"):
                 continue
             output.write_output(idx, docid, -1, score, topics[str(idx)]["query"])

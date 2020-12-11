@@ -76,7 +76,6 @@ def get_docids_with_search(term, max_doc=10):
     hits_docid = []
     for i in range(min(len(hits), max_doc)):
         hits_docid.append(hits[i].docid)
-
     return hits_docid
 
 """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
