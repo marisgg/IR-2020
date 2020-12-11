@@ -55,11 +55,9 @@ def bm25_docid(docid):
     return bm25_vector
 
 
-
-
-hits = searcher.search('corona')
+'''hits = searcher.search('corona')
 # Print the first 10 hits:
 for i in range(0, 10):
     print(f'{i+1:2} {hits[i].docid:15} {hits[i].score:.5f}')
 test_docid = hits[0].docid
-print(f'test docid: {test_docid}')
+print(f'test docid: {test_docid}')'''
