@@ -59,10 +59,6 @@ def remove_numbers(word):
 	result = ''.join(i for i in word if not i.isdigit())
 	return result
 
-def preprocess_query(query):
-	stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
-	return [word for word in query.split() if word not in stop_words]
-
 def preprocessing(data):
 	"""
 	Preprocessing steps help us have a look at the distribution of our data. Some standard steps are:

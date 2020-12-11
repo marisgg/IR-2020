@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 import argparse
-from timeit import Timer
-from process_data import process_data
-from preprocess_data_optimized import preprocessing, preprocess_query
-import index_trec
-import output
+import itertools
 import json
 import xml.etree.ElementTree as ET
-import numpy as np
-import models
+import sys
+from pyserini.index import IndexReader
+from pyserini.search import SimpleSearcher
+from output import Output
+from models import Models
+from index_trec import Index
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -34,10 +34,13 @@ def read_json_topics(filename):
         topics = json.load(infile)
         return topics
 
-def score_query(query, model):
+def preprocess_query(query):
+    stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
+    return [word for word in query.split() if word not in stop_words]
+
+def score_query(query, model, index_class, models_class):
     doc_scores = {}
     docs = set()
-    scores = []
     query = preprocess_query(query)
     # TODO: Get documents in which percentage of query terms exist? 
     """
@@ -46,30 +49,41 @@ def score_query(query, model):
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
     for term in query:
-        postings = index_trec.get_docids_from_postings(term)
+        postings = index_class.get_docids_from_postings(term)
         docs |= postings
-        if(verbose):
+        if verbose:
             print(term)
             print(len(docs))
-    
+
     count = 0
+    if verbose:
+        print(query)
     for doc in list(docs):
         score = 0
         for term in query:
-            #score += index_trec.tf_idf_term(term, doc)
             if model == "bm25":
-                score += models.bm25_term(term, doc)
+                score += models_class.bm25_term(term, doc)
             elif model == "tf_idf":
-                score += models.tf_idf_term(term, doc)
+                score += models_class.tf_idf_term(term, doc)
             else:
                 print("No model found")
+                sys.exit(1)
             count += 1
-            if(verbose and count % 1000 == 0):
+            if verbose and count % 1000 == 0:
                 print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query)))
         doc_scores[doc] = score
 
-    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
+    # Take the top 1000 for output writing
+    ordered_doc_scores = dict(itertools.islice(dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True), 1000))
     return ordered_doc_scores
+
+def pytrec_dictionary_entry(qid, docid, score):
+    """ Create dictionary entry to update the total run output for pytrec_eval """
+    return {
+                'q' + str(qid) : {
+                    str(docid) : score
+                }
+            }
 
 
 def main():
@@ -85,18 +99,26 @@ def main():
     verbose = args.verbose
     model = args.model
 
+    index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
+    searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
+    models = Models(index_reader, searcher)
+    trec_index = Index(index_reader, searcher)
+
     if args.json:
         # only need to do this once, program small MD5 or something
         write_topics_to_json("topics-rnd5.xml")
 
     topics = read_json_topics("topics.json")
-
-    output.clear_output()
+    # pytrec_dict = {}
+    output = Output("ranking.txt")
     for idx in range(1, min(args.n_queries+1, 50)):
-        for docid, score in score_query(topics[str(idx)]["query"], model).items():
-            if(docid == "reverse"):
+        for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models).items():
+            if docid == "reverse":
                 continue
+            # pytrec_dict.update(pytrec_dictionary_entry(idx, docid, score))
             output.write_output(idx, docid, -1, score, topics[str(idx)]["query"])
-  
+    # print(pytrec_dict)
+    output.close()
+
 if __name__ == "__main__":
     main()
