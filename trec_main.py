@@ -2,7 +2,7 @@
 import argparse
 from timeit import Timer
 from process_data import process_data
-from preprocess_data_optimized import preprocessing
+from preprocess_data_optimized import preprocessing, preprocess_query
 import index_trec
 import output
 import json
@@ -38,14 +38,14 @@ def score_query(query, model):
     doc_scores = {}
     docs = set()
     scores = []
-
+    query = preprocess_query(query)
     # TODO: Get documents in which percentage of query terms exist? 
     """
     Ik stel het volgende voor (zonder onderbouwing verder): als query > 3 woorden bevat, kijken we
     naar documenten waarin minimaal 2 woorden zitten? (50%)
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
-    for term in query.split():
+    for term in query:
         postings = index_trec.get_docids_from_postings(term)
         docs |= postings
         if(verbose):
@@ -55,7 +55,7 @@ def score_query(query, model):
     count = 0
     for doc in list(docs):
         score = 0
-        for term in query.split():
+        for term in query:
             #score += index_trec.tf_idf_term(term, doc)
             if model == "bm25":
                 score += models.bm25_term(term, doc)
@@ -65,7 +65,7 @@ def score_query(query, model):
                 print("No model found")
             count += 1
             if(verbose and count % 1000 == 0):
-                print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query.split())))
+                print("Processed {0} scores out of {1}..".format(count, len(list(docs))*len(query)))
         doc_scores[doc] = score
 
     ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
