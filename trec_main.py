@@ -51,8 +51,7 @@ def score_query(query, model, index_class, models_class):
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
     for term in query:
-        postings = index_class.get_docids_from_postings(term, debug=False)
-        docs |= postings
+        docs = index_class.get_docids_from_postings(term, return_set = docs, debug=True)
         if verbose:
             print(term)
             print(len(docs))
