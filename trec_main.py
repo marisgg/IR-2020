@@ -10,6 +10,7 @@ from output import write_output
 from models import Models
 from index_trec import Index
 from progress.bar import Bar
+import pytrec_eval
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -89,6 +90,17 @@ def pytrec_dictionary_entry(qid, docid, score):
                 }
             }
 
+def pytrec_evaluation(runfile, qrelfile, measures = pytrec_eval.supported_measures):
+    """ run trec_eval with "measures" from the Python interface """
+    with open(runfile, "r") as ranking:
+        run = pytrec_eval.parse_run(ranking)
+    with open(qrelfile, "r") as qrel:
+        qrel = pytrec_eval.parse_qrel(qrel)
+
+    evaluator = pytrec_eval.RelevanceEvaluator(
+        qrel, measures)
+
+    return evaluator.evaluate(run)
 
 def main():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
@@ -113,18 +125,18 @@ def main():
         write_topics_to_json("topics-rnd5.xml")
 
     topics = read_json_topics("topics.json")
-    # pytrec_dict = {}
     try:
         with open("ranking.txt", 'w') as outfile:
             for idx in range(1, min(args.n_queries+1, 50)):
                 for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models).items():
                     if docid == "reverse":
                         continue
-                    # pytrec_dict.update(pytrec_dictionary_entry(idx, docid, score))
-                    outfile.write(write_output(idx, docid, -1, score, topics[str(idx)]["query"]))
-            # print(pytrec_dict)
+                    outfile.write(write_output(idx, docid, -1, score, "testrun"))
     finally:
         outfile.close()
+
+    results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
+    print(results)
 
 if __name__ == "__main__":
     main()
