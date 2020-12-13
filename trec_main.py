@@ -40,8 +40,43 @@ def preprocess_query(query):
     stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
     return [word for word in query.split() if word not in stop_words]
 
-def score_query(query, model, index_class, models_class):
+def score_query(query, model, docs, index_class, models_class):
     doc_scores = {}
+    count = 0
+    if False:
+        if verbose:
+            print(query)
+            bar = Bar("Computing scores for query", max=(len(list(docs))*len(query))/1000)
+        for doc in list(docs):
+            score = 0
+            for term in query:
+                if model == "bm25":
+                    score += models_class.bm25_term(term, doc)
+                elif model == "tf_idf":
+                    score += models_class.tf_idf_term(term, doc)
+                else:
+                    print("No model found")
+                    sys.exit(1)
+                count += 1
+                if verbose and count % 1000 == 0:
+                    bar.next()
+            if score > 0:
+                doc_scores[doc] = score
+        if verbose:
+            bar.finish()
+    return doc_scores
+
+def score_bm25():
+    pass
+
+def score_bm25_query(query, model, docs, models_class):
+    for doc in docs:
+        score = models_class.bm25_docid_query(doc, query)
+        if score > 0.0:
+            doc_scores[doc] = score
+    return doc_scores
+
+def get_docs_and_score_query(query, model, index_class, models_class):
     docs = set()
     query = preprocess_query(query)
     # TODO: Get documents in which percentage of query terms exist? 
@@ -56,29 +91,13 @@ def score_query(query, model, index_class, models_class):
             print(term)
             print(len(docs))
 
-    count = 0
-    if verbose:
-        print(query)
-        bar = Bar("Computing scores for query", max=(len(list(docs))*len(query))/1000)
-    for doc in list(docs):
-        score = 0
-        for term in query:
-            if model == "bm25":
-                score += models_class.bm25_term(term, doc)
-            elif model == "tf_idf":
-                score += models_class.tf_idf_term(term, doc)
-            else:
-                print("No model found")
-                sys.exit(1)
-            count += 1
-            if verbose and count % 1000 == 0:
-                bar.next()
-        if score > 0:
-            doc_scores[doc] = score
-    if verbose:
-        bar.finish()
+    if True:
+        doc_scores = score_bm25_query(query, model, docs, models_class)
+    else:
+        doc_scores = score_query(query, model, docs, index_class, models_class)
+
     # TODO: Take the top 1000 for output writing
-    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
+    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)[:10000])
     return ordered_doc_scores
 
 def pytrec_dictionary_entry(qid, docid, score):
@@ -127,7 +146,7 @@ def main():
     try:
         with open("ranking.txt", 'w') as outfile:
             for idx in range(1, min(args.n_queries+1, 50)):
-                for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models).items():
+                for docid, score in get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models).items():
                     if docid == "reverse":
                         continue
                     outfile.write(write_output(idx, docid, -1, score, "testrun"))

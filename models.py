@@ -51,3 +51,10 @@ class Models:
         tfs = self.index_reader.get_document_vector(docid)
         bm25_vector = {term: self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in tfs.keys()}
         return bm25_vector
+
+    def bm25_docid_query(self, docid, query) -> float:
+        vec = self.bm25_docid(docid)
+        score = 0.0
+        for term in query:
+            score += vec[query]
+        return score
