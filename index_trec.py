@@ -14,7 +14,10 @@ class Index:
     def get_docids_from_postings(self, term, return_set = set(), max_doc=192459, debug=False) -> set():
         """ Use postings and set union to get list of documents containing query words """
         if debug:
-            postings = self.index_reader.get_postings_list(term)
+            try:
+                postings = self.index_reader.get_postings_list(term)
+            except:
+                postings = []
             for posting in postings:
                 try:
                     docnum = posting.docid
