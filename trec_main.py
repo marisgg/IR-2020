@@ -10,6 +10,7 @@ from output import write_output
 from models import Models
 from index_trec import Index
 from progress.bar import Bar
+from pyserini.analysis import Analyzer, get_lucene_analyzer
 import pytrec_eval
 
 def parse_topics(topicsfilename):
@@ -43,7 +44,8 @@ def preprocess_query(query):
 def score_query(query, model, index_class, models_class):
     doc_scores = {}
     docs = set()
-    query = preprocess_query(query)
+    analyzer = Analyzer(get_lucene_analyzer())
+    query = tokens = analyzer.analyze(query)
     # TODO: Get documents in which percentage of query terms exist? 
     """
     Ik stel het volgende voor (zonder onderbouwing verder): als query > 3 woorden bevat, kijken we
