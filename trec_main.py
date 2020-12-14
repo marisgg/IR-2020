@@ -154,7 +154,8 @@ def main():
         outfile.close()
 
     results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
-    print(results)
+    with open("results.json", 'w') as outjson:
+        json.dump(results, outjson)
 
 if __name__ == "__main__":
     main()
