@@ -45,7 +45,7 @@ def score_query(query, model, index_class, models_class):
     doc_scores = {}
     docs = set()
     analyzer = Analyzer(get_lucene_analyzer())
-    query = tokens = analyzer.analyze(query)
+    query = analyzer.analyze(query)
     # TODO: Get documents in which percentage of query terms exist? 
     """
     Ik stel het volgende voor (zonder onderbouwing verder): als query > 3 woorden bevat, kijken we
