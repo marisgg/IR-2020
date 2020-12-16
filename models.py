@@ -183,7 +183,7 @@ class Models:
 
         self.t.start()
         # rocchio algorithm    
-        q_mod = alpha * q0 + beta * centroid_relevant_docs - gamma * centroid_non_relevant_docs
+        q_mod = alpha * np.asarray(q0) + beta * np.asarray(centroid_relevant_docs) - gamma * np.asarray(centroid_non_relevant_docs)
         self.t.stop() 
         print(q_mod[:300])
         return q_mod
