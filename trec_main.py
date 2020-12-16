@@ -53,8 +53,10 @@ def score_query(query, model, index_class, models_class, topic_id):
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
     if model == "rocchio":
-            doc_scores = models_class.rocchio_ranking(topic_id, query) #, ordered_doc_scores.keys()[:100])
-    
+         # during testing, take random set of 100 documents
+        top_k_docs = index_class.get_docids(3)
+        
+        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
     else:
         for term in query:
             docs = index_class.get_docids_from_postings(term, return_set = docs, debug=True)
@@ -89,6 +91,9 @@ def score_query(query, model, index_class, models_class, topic_id):
     ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
 
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
+    ## Assume that the top-k ranked documents are relevant. 
+
+
     return ordered_doc_scores
 
 

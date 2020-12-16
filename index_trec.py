@@ -9,7 +9,7 @@ class Index:
 
     def get_docids(self, max_doc=192459) -> []:
         """ gets ALL docids by default order until the max_doc limit (defaults to num_docs) """
-        return [self.searcher.doc(i).docid() for i in range(self.searcher.num_docs)]
+        return [self.searcher.doc(i).docid() for i in range(max_doc)]
 
     def get_docids_from_postings(self, term, return_set = set(), max_doc=192459, debug=False) -> set():
         """ Use postings and set union to get list of documents containing query words """
