@@ -57,6 +57,8 @@ def score_query(query, model, index_class, models_class, topic_id):
         top_k_docs = index_class.get_docids(100)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
+        ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=False)
+    
     else:
         for term in query:
             docs = index_class.get_docids_from_postings(term, return_set = docs, debug=True)
@@ -87,12 +89,11 @@ def score_query(query, model, index_class, models_class, topic_id):
             bar.finish()
 
 
-    # TODO: Take the top 1000 for output writing
-    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
-
+        # TODO: Take the top 1000 for output writing
+        # TODO: shouldn't it be reverse = False?
+        ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
     ## Assume that the top-k ranked documents are relevant. 
-
 
     return ordered_doc_scores
 
@@ -145,7 +146,10 @@ def main():
                 for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models, idx).items():
                     if docid == "reverse":
                         continue
-                    outfile.write(write_output(idx, docid, -1, score, "testrun"))
+                    
+                    print(f"OUTPUT DOC: {idx} - {docid}- '-1' - {score} - 'testrun' ")
+                    write_output(idx, docid, -1, score, "testrun")
+                    #outfile.write(write_output(idx, docid, -1, score, "testrun"))
     finally:
         outfile.close()
 
