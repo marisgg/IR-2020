@@ -55,10 +55,10 @@ def score_query(query, model, index_class, models_class, topic_id):
 
     if model == "rocchio":
          # during testing, take random set of 100 documents
-        top_k_docs = index_class.get_docids(100)
+        top_k_docs = index_class.get_docids(1000)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
-        ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=False)
+        ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
     
     else:
         for term in query:
@@ -167,9 +167,8 @@ def main():
                     if docid == "reverse":
                         continue
                     
-                    print(f"OUTPUT DOC: {idx} - {docid}- '-1' - {score} - 'testrun' ")
-                    write_output(idx, docid, -1, score, "testrun")
-                    #outfile.write(write_output(idx, docid, -1, score, "testrun"))
+                    #write_output(idx, docid, -1, score, "testrun")
+                    outfile.write(write_output(idx, docid, -1, score, "testrun"))
     finally:
         outfile.close()
 

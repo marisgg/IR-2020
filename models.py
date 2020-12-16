@@ -212,11 +212,11 @@ class Models:
             self.create_collection_list(top_k_docs)
         print("in rocchio ranking")
 
-        self.t.start()
+        """self.t.start()
         if self.all_docs == [] :
             self.all_docs = self.trec_index.get_docids() # ~ 30 seconds
         print("got all docs")
-        self.t.stop()
+        self.t.stop()"""
 
         q_mod = self.rocchio_algorithm(qid, q0)
         print("got qmod")
@@ -231,10 +231,11 @@ class Models:
         for doc in top_k_docs:
             similarity_score = np.dot(np.array(list(self.create_complete_vector(self.tf_idf_docid(doc)))), q_mod)
             doc_scores[doc] = similarity_score
-            print(f"Doc nr.:{count} - Score: {similarity_score}")
+            #print(f"Doc nr.:{count} - Score: {similarity_score}")
             count += 1
         self.t.stop()
-        print(doc_scores)
+        
+        #print(doc_scores)
         rocchio_timer.stop()
         return doc_scores
 
