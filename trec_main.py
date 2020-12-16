@@ -52,6 +52,7 @@ def score_query(query, model, index_class, models_class, topic_id):
     naar documenten waarin minimaal 2 woorden zitten? (50%)
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
+
     if model == "rocchio":
          # during testing, take random set of 100 documents
         top_k_docs = index_class.get_docids(100)
@@ -88,15 +89,40 @@ def score_query(query, model, index_class, models_class, topic_id):
         if verbose:
             bar.finish()
 
+<<<<<<< HEAD
 
         # TODO: Take the top 1000 for output writing
         # TODO: shouldn't it be reverse = False?
         ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
+=======
+    # TODO: Take the top 1000 for output writing
+    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
+
+>>>>>>> 55f668b79531282c562374120e63672e2ebddae4
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
     ## Assume that the top-k ranked documents are relevant. 
 
     return ordered_doc_scores
 
+def pytrec_dictionary_entry(qid, docid, score):
+    """ Create dictionary entry to update the total run output for pytrec_eval """
+    return {
+                'q' + str(qid) : {
+                    str(docid) : score
+                }
+            }
+
+def pytrec_evaluation(runfile, qrelfile, measures = pytrec_eval.supported_measures):
+    """ run trec_eval with "measures" from the Python interface """
+    with open(runfile, "r") as ranking:
+        run = pytrec_eval.parse_run(ranking)
+    with open(qrelfile, "r") as qrel:
+        qrel = pytrec_eval.parse_qrel(qrel)
+
+    evaluator = pytrec_eval.RelevanceEvaluator(
+        qrel, measures)
+
+    return evaluator.evaluate(run)
 
 
 def pytrec_dictionary_entry(qid, docid, score):
