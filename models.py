@@ -26,6 +26,7 @@ class Models:
         self.all_docs= []
         self.top_k_doc_vec = {}
 
+
     def get_n_of_words_in_docid(self, docid):
         """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
         return sum(self.index_reader.get_document_vector(docid).values())
@@ -70,9 +71,9 @@ class Models:
         bm25_vector = {term: self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in tfs.keys()}
         return bm25_vector
 
-
-
-
+      
+      
+      
     def create_collection_list(self, top_k_docs):
         """
         Create list of all analyzed terms in the top-k documents.
@@ -226,6 +227,4 @@ c_list = []
 for term in itertools.islice(index_reader.terms(), 0, None):
     c_list.append(term.term)
 
-print(len(c_list)) #38734
 
-193468
