@@ -229,7 +229,6 @@ class Models:
 
         # Rank documents using dot product as similarity function
         for doc in top_k_docs:
-            
             similarity_score = np.dot(np.array(list(self.create_complete_vector(self.tf_idf_docid(doc)))), q_mod)
             doc_scores[doc] = similarity_score
             print(f"Doc nr.:{count} - Score: {similarity_score}")
@@ -246,12 +245,3 @@ import plotly.express as px
 fig = px.histogram(relevance_data, x="topic_id", color = "relevancy")
 fig.show()
 """
-<<<<<<< HEAD
-=======
-index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
-c_list = []
-for term in itertools.islice(index_reader.terms(), 0, None):
-    c_list.append(term.term)
-
-
->>>>>>> 55f668b79531282c562374120e63672e2ebddae4
