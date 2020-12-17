@@ -54,8 +54,9 @@ def score_query(query, model, index_class, models_class, topic_id):
     """
 
     if model == "rocchio":
-         # during testing, take random set of 100 documents
-        top_k_docs = index_class.get_docids(1000)
+         # during testing, take random set of 20 documents
+         # this should be done after tf-idf / bm25, but takes too long now to test rocchio.
+        top_k_docs = index_class.get_docids(20)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
         ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
@@ -91,10 +92,10 @@ def score_query(query, model, index_class, models_class, topic_id):
 
 
         # TODO: Take the top 1000 for output writing
-        # TODO: shouldn't it be reverse = False?
         ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
+    
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
-    ## Assume that the top-k ranked documents are relevant. 
+    ## Assume that the top-k ranked documents are relevant OR take relevant documents of whole collection 
 
     return ordered_doc_scores
 

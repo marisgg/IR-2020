@@ -96,14 +96,14 @@ class Models:
         For this, also the terms that are not present in the document should be added to the document vector.
         """
         complete_doc_vector = doc_vector
-        print(f"Length of document vector before completing with collection list: {len(doc_vector)}")
+        #print(f"Length of document vector before completing with collection list: {len(doc_vector)}")
         for term in self.c_list:    
             # TODO: smoothing of terms?
             if not term in doc_vector:
                 complete_doc_vector[term] = 0
         complete_dict = collections.OrderedDict(sorted(complete_doc_vector.items()))
         complete_vector_list = complete_dict.values()
-        print(f"Length after completing: {len(complete_vector_list)}")
+        #print(f"Length after completing: {len(complete_vector_list)}")
         return complete_vector_list
             
 
@@ -152,11 +152,8 @@ class Models:
         non_relevant_doc_ids = doc_ids[1]
 
         relevant_doc_vectors = []
-        count = 0
         for doc_id in tqdm(relevant_doc_ids):
             relevant_doc_vectors.append(self.create_complete_vector(self.tf_idf_docid(doc_id)))
-            count += 1
-            break
         print("Got relevant vectors")
         self.t.stop()
 
@@ -164,13 +161,12 @@ class Models:
         non_relevant_doc_vectors = []
         for doc_id in tqdm(non_relevant_doc_ids):
             non_relevant_doc_vectors.append(self.create_complete_vector(self.tf_idf_docid(doc_id)))
-            break
         print("Got non-relevant vectors")
         self.t.stop()
 
         # Standard values
-        beta = 0.75
         alpha = 1.0
+        beta = 0.75
         gamma = 0.15
 
         # calculate centroid of relevant documents
@@ -198,7 +194,7 @@ class Models:
         # rocchio algorithm    
         q_mod = np.multiply(alpha, np.asarray(list(complete_q0))) + np.multiply(beta, np.asarray(centroid_relevant_docs)) - np.multiply(gamma, np.asarray(centroid_non_relevant_docs))
         self.t.stop() 
-        print(q_mod[:300])
+        print(q_mod[:3000])
         return q_mod
 
     def rocchio_ranking(self, qid, q0, top_k_docs):
@@ -220,7 +216,11 @@ class Models:
 
         q_mod = self.rocchio_algorithm(qid, q0)
         print("got qmod")
-        
+
+        # Check how many values are not 0 to check effect of relevance feedback 
+        q_mod_diff = [x for x in q_mod if x != 0.0]
+        print(f"q_mod non-zero terms: {len(q_mod_diff)}")
+
         doc_scores = {}
 
         count = 0
@@ -234,8 +234,9 @@ class Models:
             #print(f"Doc nr.:{count} - Score: {similarity_score}")
             count += 1
         self.t.stop()
-        
+    
         #print(doc_scores)
+        print("TOTAL ROCCHIO TIME: ")
         rocchio_timer.stop()
         return doc_scores
 
