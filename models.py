@@ -126,7 +126,7 @@ class Models:
         self.relevance_data = self.relevance_data[self.relevance_data.relevancy >= 0] # File contains 2 rows with -1
 
     
-    def get_relevance_docs(self, query_id, q, idh, ordered_doc_scores):
+    def get_relevance_docs(self, query_id, q, m, ordered_doc_scores):
         """
         Relevancy equals to 0 is irrelevant, 1 is relevant, and 2 is highly relevant.
 
@@ -135,12 +135,13 @@ class Models:
         self.get_relevance_dataframe()
 
         relevant_docs = self.relevance_data[(self.relevance_data.topic_id == query_id) & (self.relevance_data.relevancy > 1)] # only highly relevant feedback?
-        if idh == True:
+        if m == 'ide':
             # Loop over ordered dict and compare with non-relevant docs to find doc with highest rank which should be non-relevant
             # TODO: loop over actual top-k docs + scores
 
             # Get set of non-relevant documents for current query
             non_relevant_docs = self.relevance_data[(self.relevance_data.topic_id == query_id) & (self.relevance_data.relevancy == 0)]
+            print(f"Amount of non-relevant docs for current query: {len(non_relevant_docs.cord_uid)}")
 
             # Check if one of the documents from the top-k documents are within this set
             for doc in ordered_doc_scores:
@@ -163,10 +164,10 @@ class Models:
         return [relevant_docs.cord_uid, non_relevant_docs.cord_uid]
     
 
-    def rocchio_algorithm(self, qid, q0, top_docs, idh):
+    def rocchio_algorithm(self, qid, q0, top_docs, m):
         print("in rocchio algorithm")
         self.t.start()
-        doc_ids = self.get_relevance_docs(qid, q0, idh, top_docs)
+        doc_ids = self.get_relevance_docs(qid, q0, m, top_docs)
         relevant_doc_ids = doc_ids[0]
         non_relevant_doc_ids = doc_ids[1]
 
@@ -221,7 +222,7 @@ class Models:
         print(q_mod[:3000])
         return q_mod
 
-    def rocchio_ranking(self, qid, q0, top_k_docs):
+    def rocchio_ranking(self, qid, q0, top_k_docs, model):
         rocchio_timer = Timer()
         rocchio_timer.start()
         if self.c_list == []:
@@ -238,7 +239,7 @@ class Models:
         print("got all docs")
         self.t.stop()"""
 
-        q_mod = self.rocchio_algorithm(qid, q0, top_k_docs, True) # TODO: fix idh argument
+        q_mod = self.rocchio_algorithm(qid, q0, top_k_docs, model) # TODO: fix idh argument
         print("got qmod")
 
         # Check how many values are not 0 to check effect of relevance feedback 
