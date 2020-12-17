@@ -147,7 +147,7 @@ def main():
     parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
     parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=1)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
-    parser.add_argument("-r", "--reranking", help="which rerank model to use: 'none', 'rocchio', or 'ide'", default="ide")
+    parser.add_argument("-r", "--reranking", help="which rerank model to use: 'none', 'rocchio', or 'ide'", default="none")
     args = parser.parse_args()
     global verbose
     verbose = args.verbose
