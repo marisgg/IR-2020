@@ -50,10 +50,10 @@ class Models:
         return self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None)
 
     def bm25(self, query, docid) -> float:
-        return self.index_reader.compute_bm25_term_weight(docid, query)
+        return self.index_reader.compute_bm25_term_weight(docid, query, analyzer=None)
 
     def bm25_mapper(self, term):
-        return self.index_reader.compute_bm25_term_weight(self.doc, term)
+        return self.index_reader.compute_bm25_term_weight(self.doc, term, analyzer=None)
 
     def bm25_query_score(self, docid, query):
         return sum([self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in query])

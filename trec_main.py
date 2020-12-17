@@ -19,31 +19,42 @@ def document_at_a_time(query, index, models, k):
     L = []
     R = []
     for term in analyze_query(query):
-        L.append(index.get_inverted_list(term))
+        l = index.get_inverted_list(term)
+        L.append(l)
+    print(L)
+    print([len(l.ilist) for l in L])
     d = -1
     finished = False
     while(not finished):
         score = 0
         for l in L:
+            # print(l)
             doc = l.get_current_doc()
-            if doc is not None and doc > d:
+            # print(doc)
+            if doc is None:
+                continue
+            if doc > d:
                 d = doc
         for l in L:
-            l.skip_forward_to_document(d)
-            if l.get_current_doc() == d:
-                if verbose:
-                    print("Computing score")
-                score += models.bm25_term(index.get_docid_from_index(d), l.term)
+            if l.skip_forward_to_document(d):
+                score += models.bm25_term(index.get_docid_from_index(d), l.get_term())
                 l.increment()
+            # elif l.get_current_doc() is not None:
             else:
-                d = -1
-                break
+                pass
+                # d = -1
+                # print("HUH!")
+                # break
         if d > -1:
             if verbose:
                 print("Pushed to heap")
-            heapq.heappush(R, (score, d))
-        finished = all([l.is_finished() for l in L])
-    return [heapq.heappop(R) for _ in range(k)]
+            heapq.heappush(R, (score, index.get_docid_from_index(d)))
+        # print([l.is_finished() for l in L])
+        finished = any([l.is_finished() for l in L])
+    result = [heapq.heappop(R) for _ in range(min(k, len(R)))]
+    if verbose:
+        print(result)
+    return result
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -183,21 +194,19 @@ def main():
         write_topics_to_json("topics-rnd5.xml")
 
     topics = read_json_topics("topics.json")
-    print(document_at_a_time(topics[str(1)]["query"], trec_index, models, 3))
+    # print(document_at_a_time(topics[str(1)]["query"], trec_index, models, 10))
 
-    # try:
-    #     with open("ranking.txt", 'w') as outfile:
-    #         for idx in range(1, min(args.n_queries+1, 50)):
-    #             for docid, score in get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models).items():
-    #                 if docid == "reverse":
-    #                     continue
-    #                 outfile.write(write_output(idx, docid, -1, score, "testrun"))
-    # finally:
-    #     outfile.close()
+    try:
+        with open("ranking.txt", 'w') as outfile:
+            for idx in range(1, min(args.n_queries+1, 50)):
+                for (score, docid) in document_at_a_time(topics[str(idx)]["query"], trec_index, models, 50):
+                    outfile.write(write_output(idx, docid, -1, score, "testrun"))
+    finally:
+        outfile.close()
 
-    # results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
-    # with open("results.json", 'w') as outjson:
-    #     json.dump(results, outjson)
+    results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
+    with open("results.json", 'w') as outjson:
+        json.dump(results, outjson)
 
 if __name__ == "__main__":
     main()

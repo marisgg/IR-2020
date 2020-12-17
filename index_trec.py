@@ -7,33 +7,50 @@ class InvertedList:
         self.term = term
         self.ilist = ilist
 
+    def __repr__(self):
+        return "pointer: {0} \nterm: {1}\nilist_len: {2}".format(self.pointer, self.term, len(self.ilist))
+
+
     def get_item(self):
         # If list is either empty or finished
-        if len(self.ilist) == 0 or self.is_finished:
-            return None
+        if not self.ilist or self.is_finished():
+            # print("length of list " + str(len(self.ilist)))
+            # print("is finished " + str(self.is_finished))
+            return ()
         return self.ilist[self.pointer]
 
     def increment(self):
         self.pointer += 1
 
+    def get_term(self):
+        return self.term
+
     def is_finished(self):
-        return self.pointer == len(self.ilist)
+        return self.pointer >= (len(self.ilist))
 
     def get_current_doc(self):
-        if self.get_item() is None:
+        if not self.get_item():
             return None
         else:
             return self.get_item()[0]
 
     def get_current_tf(self):
-        if self.get_item() is None:
+        if not self.get_item():
             return None
         else:
             return self.get_item()[1]
 
     def skip_forward_to_document(self, docidx):
-        while(not self.is_finished and self.get_current_doc != docidx):
-            self.increment()
+        # while(not self.is_finished() and self.get_current_doc() != docidx):
+            # self.increment()
+        # return self.get_current_doc() == docidx
+        if docidx in list(map(lambda x : x[0], self.ilist)):
+            self.pointer = list(map(lambda x : x[0], self.ilist)).index((docidx))
+            print("Found it!")
+            return True
+        else:
+            self.pointer = len(self.ilist)
+            return False
 
 class Index:
 
@@ -55,6 +72,7 @@ class Index:
     def get_inverted_list(self, term):
         print(term)
         postings = self.index_reader.get_postings_list(term, analyzer=None)
+        print(postings is None)
         if postings is None:
             return InvertedList(0, term, [])
         else:
