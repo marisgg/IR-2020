@@ -41,7 +41,7 @@ def preprocess_query(query):
     stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
     return [word for word in query.split() if word not in stop_words]
 
-def score_query(query, model, index_class, models_class, topic_id, rerank_m):
+def score_query(query, model, index_class, models_class, topic_id, rerank_m, top_k_nr):
     doc_scores = {}
     docs = set()
     analyzer = Analyzer(get_lucene_analyzer())
@@ -57,7 +57,7 @@ def score_query(query, model, index_class, models_class, topic_id, rerank_m):
          # during testing, take random set of X documents
          # this should be done after tf-idf / bm25, but takes too long now to test rocchio.
          # Then, top_k_docs should be a dict with the top-k docs with scores --> to be able to retrieve doc with highest ranking that was actually non-relevant
-        top_k_docs = index_class.get_docids(10000)
+        top_k_docs = index_class.get_docids(top_k_nr)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs, rerank_m) #, ordered_doc_scores.keys()[:100])
         ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1]), reverse=True)
@@ -148,11 +148,13 @@ def main():
     parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=1)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     parser.add_argument("-r", "--reranking", help="which rerank model to use: 'none', 'rocchio', or 'ide'", default="none")
+    parser.add_argument("-k", "--top_k_reranking", help="top-k of documents to be (re)ranked", type=int, default=100)
     args = parser.parse_args()
     global verbose
     verbose = args.verbose
     model = args.model
     rerank_model = args.reranking
+    top_k_nr = args.top_k_reranking
 
     index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
     searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
@@ -168,7 +170,7 @@ def main():
     try:
         with open("ranking.txt", 'w') as outfile:
             for idx in range(1, min(args.n_queries+1, 50)):
-                for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models, idx, rerank_model).items():
+                for docid, score in score_query(topics[str(idx)]["query"], model, trec_index, models, idx, rerank_model, top_k_nr).items():
                     if docid == "reverse":
                         continue
                     
