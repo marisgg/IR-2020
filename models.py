@@ -219,7 +219,6 @@ class Models:
         # rocchio algorithm    
         q_mod = np.multiply(alpha, np.asarray(list(complete_q0))) + np.multiply(beta, np.asarray(centroid_relevant_docs)) - np.multiply(gamma, np.asarray(centroid_non_relevant_docs))
         self.t.stop() 
-        print(q_mod[:3000])
         return q_mod
 
     def rocchio_ranking(self, qid, q0, top_k_docs, model):
@@ -232,12 +231,6 @@ class Models:
             # add the terms from the top-k documents
             self.create_collection_list(top_k_docs)
         print("in rocchio ranking")
-
-        """self.t.start()
-        if self.all_docs == [] :
-            self.all_docs = self.trec_index.get_docids() # ~ 30 seconds
-        print("got all docs")
-        self.t.stop()"""
 
         q_mod = self.rocchio_algorithm(qid, q0, top_k_docs, model) # TODO: fix idh argument
         print("got qmod")
@@ -253,11 +246,11 @@ class Models:
         self.t.start()
 
         # Rank documents using dot product as similarity function
-        for doc in top_k_docs:
+        for doc in tqdm(top_k_docs):
             similarity_score = np.dot(np.array(list(self.create_complete_vector(self.tf_idf_docid(doc)))), q_mod)
             doc_scores[doc] = similarity_score
             #print(f"Doc nr.:{count} - Score: {similarity_score}")
-            count += 1
+            #count += 1
         self.t.stop()
     
         #print(doc_scores)
