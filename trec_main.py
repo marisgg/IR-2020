@@ -56,6 +56,7 @@ def score_query(query, model, index_class, models_class, topic_id):
     if model == "rocchio":
          # during testing, take random set of 20 documents
          # this should be done after tf-idf / bm25, but takes too long now to test rocchio.
+         # Then, top_k_docs should be a dict with the top-k docs with scores --> to be able to retrieve doc with highest ranking that was actually non-relevant
         top_k_docs = index_class.get_docids(20)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])

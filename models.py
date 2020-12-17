@@ -126,14 +126,33 @@ class Models:
         self.relevance_data = self.relevance_data[self.relevance_data.relevancy >= 0] # File contains 2 rows with -1
 
     
-    def get_relevance_docs(self, query_id, q):
+    def get_relevance_docs(self, query_id, q, idh, ordered_doc_scores):
         """
         Relevancy equals to 0 is irrelevant, 1 is relevant, and 2 is highly relevant.
+
+        Ide dec-h algoritm: Take only the marked non-relevant document that received the highest score.
         """
         self.get_relevance_dataframe()
 
         relevant_docs = self.relevance_data[(self.relevance_data.topic_id == query_id) & (self.relevance_data.relevancy > 1)] # only highly relevant feedback?
-        non_relevant_docs = self.relevance_data[(self.relevance_data.topic_id == query_id) & (self.relevance_data.relevancy == 0)] # Only use positive feedback ?
+        if idh == True:
+            # Loop over ordered dict and compare with non-relevant docs to find doc with highest rank which should be non-relevant
+            # TODO: loop over actual top-k docs + scores
+
+            # Get set of non-relevant documents for current query
+            non_relevant_docs = self.relevance_data[(self.relevance_data.topic_id == query_id) & (self.relevance_data.relevancy == 0)]
+
+            # Check if one of the documents from the top-k documents are within this set
+            for doc in ordered_doc_scores:
+                non_relevant_top_k = non_relevant_docs[non_relevant_docs.cord_uid == doc]
+                if np.array(non_relevant_top_k.cord_uid) != []:
+                    # only get highest ranked document
+                    break
+            
+            non_relevant_docs = non_relevant_top_k
+            print(f"Non-relevant doc in the top-k docs: {non_relevant_docs}")
+        else:
+            non_relevant_docs = self.relevance_data[(self.relevance_data.topic_id == query_id) & (self.relevance_data.relevancy == 0)] # Only use positive feedback ?
 
         # Add terms in relevant & non-relevant docs to the collection term list
         # Create complete query vector accordingly.
@@ -144,10 +163,10 @@ class Models:
         return [relevant_docs.cord_uid, non_relevant_docs.cord_uid]
     
 
-    def rocchio_algorithm(self, qid, q0):
+    def rocchio_algorithm(self, qid, q0, top_docs, idh):
         print("in rocchio algorithm")
         self.t.start()
-        doc_ids = self.get_relevance_docs(qid, q0)
+        doc_ids = self.get_relevance_docs(qid, q0, idh, top_docs)
         relevant_doc_ids = doc_ids[0]
         non_relevant_doc_ids = doc_ids[1]
 
@@ -181,11 +200,16 @@ class Models:
         self.t.start()
         # TODO: In practice, only use positive feedback (set gamma to 0) --> test this
         # calculate centroid of non-relevant documents
-        summed_non_relevant_vectors = np.zeros(len(non_relevant_doc_vectors[0]))
-        for doc in tqdm(non_relevant_doc_vectors): 
-            summed_non_relevant_vectors = np.add(summed_non_relevant_vectors, np.array(list(doc)), summed_non_relevant_vectors)
-        centroid_non_relevant_docs = 1/len(non_relevant_doc_ids) * summed_non_relevant_vectors
-        print(f"centroid non-rel length: {len(centroid_non_relevant_docs)}")
+        if non_relevant_doc_vectors == []:
+            # no non-relevant feedback
+            gamma = 0
+            centroid_non_relevant_docs = 0
+        else:
+            summed_non_relevant_vectors = np.zeros(len(non_relevant_doc_vectors[0]))
+            for doc in tqdm(non_relevant_doc_vectors): 
+                summed_non_relevant_vectors = np.add(summed_non_relevant_vectors, np.array(list(doc)), summed_non_relevant_vectors)
+                centroid_non_relevant_docs = 1/len(non_relevant_doc_ids) * summed_non_relevant_vectors
+            print(f"centroid non-rel length: {len(centroid_non_relevant_docs)}")
         self.t.stop()
 
         complete_q0 = self.create_query_vector(q0)
@@ -214,7 +238,7 @@ class Models:
         print("got all docs")
         self.t.stop()"""
 
-        q_mod = self.rocchio_algorithm(qid, q0)
+        q_mod = self.rocchio_algorithm(qid, q0, top_k_docs, True) # TODO: fix idh argument
         print("got qmod")
 
         # Check how many values are not 0 to check effect of relevance feedback 
