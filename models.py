@@ -7,6 +7,10 @@ class Models:
         self.index_reader = index
         self.searcher = searcher
         self.N = self.index_reader.stats()['documents']
+        self.doc = None
+
+    def set_doc(self, doc):
+        self.doc = doc
 
     def get_n_of_words_in_docid(self, docid):
         """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
@@ -34,7 +38,6 @@ class Models:
         else:
             return 0.0
 
-
     def tf_idf_docid(self, docid) -> {}:
         tfs = self.index_reader.get_document_vector(docid)
         tf_idf = {}
@@ -43,8 +46,17 @@ class Models:
             tf_idf[term] = count/self.get_n_of_words_in_docid(docid) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
-    def bm25_term(self, term, docid) -> float:
+    def bm25_term(self, docid, term) -> float:
         return self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None)
+
+    def bm25(self, query, docid) -> float:
+        return self.index_reader.compute_bm25_term_weight(docid, query)
+
+    def bm25_mapper(self, term):
+        return self.index_reader.compute_bm25_term_weight(self.doc, term)
+
+    def bm25_query_score(self, docid, query):
+        return sum([self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in query])
 
     def bm25_docid(self, docid) -> {}:
         """ get all terms in documents """
@@ -56,5 +68,8 @@ class Models:
         vec = self.bm25_docid(docid)
         score = 0.0
         for term in query:
-            score += vec[query]
+            try:
+                score += vec[term]
+            except:
+                pass
         return score

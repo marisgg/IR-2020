@@ -4,14 +4,46 @@ import itertools
 import json
 import xml.etree.ElementTree as ET
 import sys
+import heapq
+from multiprocessing import Pool
 from pyserini.index import IndexReader
 from pyserini.search import SimpleSearcher
+from pyserini.analysis import Analyzer, get_lucene_analyzer
+from progress.bar import Bar
+import pytrec_eval
 from output import write_output
 from models import Models
-from index_trec import Index
-from progress.bar import Bar
-from pyserini.analysis import Analyzer, get_lucene_analyzer
-import pytrec_eval
+from index_trec import Index, InvertedList
+
+def document_at_a_time(query, index, models, k):
+    L = []
+    R = []
+    for term in analyze_query(query):
+        L.append(index.get_inverted_list(term))
+    d = -1
+    finished = False
+    while(not finished):
+        score = 0
+        for l in L:
+            doc = l.get_current_doc()
+            if doc is not None and doc > d:
+                d = doc
+        for l in L:
+            l.skip_forward_to_document(d)
+            if l.get_current_doc() == d:
+                if verbose:
+                    print("Computing score")
+                score += models.bm25_term(index.get_docid_from_index(d), l.term)
+                l.increment()
+            else:
+                d = -1
+                break
+        if d > -1:
+            if verbose:
+                print("Pushed to heap")
+            heapq.heappush(R, (score, d))
+        finished = all([l.is_finished() for l in L])
+    return [heapq.heappop(R) for _ in range(k)]
 
 def parse_topics(topicsfilename):
     topics = {}
@@ -44,43 +76,49 @@ def preprocess_query(query):
 def score_query(query, model, docs, index_class, models_class):
     doc_scores = {}
     count = 0
-    if False:
-        if verbose:
-            print(query)
-            bar = Bar("Computing scores for query", max=(len(list(docs))*len(query))/1000)
-        for doc in list(docs):
+    if verbose:
+        print(query)
+        bar = Bar("Computing scores for query", max=(len(docs)))
+    if model == "bm25":
+        for doc in docs:
+            score = models_class.bm25_query_score(doc, query)
+            if verbose:
+                bar.next()
+            if score > 0:
+                doc_scores[doc] = score
+    elif model == "tf_idf":
+        for doc in docs:
             score = 0
             for term in query:
-                if model == "bm25":
-                    score += models_class.bm25_term(term, doc)
-                elif model == "tf_idf":
-                    score += models_class.tf_idf_term(term, doc)
-                else:
-                    print("No model found")
-                    sys.exit(1)
+                score += models_class.tf_idf_term(term, doc)
                 count += 1
                 if verbose and count % 1000 == 0:
                     bar.next()
             if score > 0:
                 doc_scores[doc] = score
-        if verbose:
-            bar.finish()
+    if verbose:
+        bar.finish()   
     return doc_scores
 
 def score_bm25():
     pass
 
 def score_bm25_query(query, model, docs, models_class):
+    doc_scores = {}
     for doc in docs:
         score = models_class.bm25_docid_query(doc, query)
         if score > 0.0:
             doc_scores[doc] = score
     return doc_scores
 
-def get_docs_and_score_query(query, model, index_class, models_class):
-    docs = set()
+def analyze_query(query):
     analyzer = Analyzer(get_lucene_analyzer())
     query = analyzer.analyze(query)
+    return query
+
+def get_docs_and_score_query(query, model, index_class, models_class):
+    docs = set()
+
     # TODO: Get documents in which percentage of query terms exist? 
     """
     Ik stel het volgende voor (zonder onderbouwing verder): als query > 3 woorden bevat, kijken we
@@ -93,7 +131,7 @@ def get_docs_and_score_query(query, model, index_class, models_class):
             print(term)
             print(len(docs))
 
-    if True:
+    if False:
         doc_scores = score_bm25_query(query, model, docs, models_class)
     else:
         doc_scores = score_query(query, model, docs, index_class, models_class)
@@ -145,19 +183,21 @@ def main():
         write_topics_to_json("topics-rnd5.xml")
 
     topics = read_json_topics("topics.json")
-    try:
-        with open("ranking.txt", 'w') as outfile:
-            for idx in range(1, min(args.n_queries+1, 50)):
-                for docid, score in get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models).items():
-                    if docid == "reverse":
-                        continue
-                    outfile.write(write_output(idx, docid, -1, score, "testrun"))
-    finally:
-        outfile.close()
+    print(document_at_a_time(topics[str(1)]["query"], trec_index, models, 3))
 
-    results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
-    with open("results.json", 'w') as outjson:
-        json.dump(results, outjson)
+    # try:
+    #     with open("ranking.txt", 'w') as outfile:
+    #         for idx in range(1, min(args.n_queries+1, 50)):
+    #             for docid, score in get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models).items():
+    #                 if docid == "reverse":
+    #                     continue
+    #                 outfile.write(write_output(idx, docid, -1, score, "testrun"))
+    # finally:
+    #     outfile.close()
+
+    # results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
+    # with open("results.json", 'w') as outjson:
+    #     json.dump(results, outjson)
 
 if __name__ == "__main__":
     main()
