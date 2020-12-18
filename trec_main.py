@@ -14,44 +14,81 @@ import pytrec_eval
 from output import write_output
 from models import Models
 from index_trec import Index, InvertedList
+import pickle
 
-def document_at_a_time(query, index, models, k):
+def dummy_document_at_a_time(query, index, models, k):
     L = []
     R = []
     for term in analyze_query(query):
         l = index.get_inverted_list(term)
         L.append(l)
     print(L)
-    print([len(l.ilist) for l in L])
+    for d in range(192459):
+        score = 0
+        for l in L:
+            print(l.get_current_doc() is None)
+            if l.get_current_doc() == d:
+                if verbose:
+                    print("Computing score")
+                score += models.bm25_term(index.get_docid_from_index(d), l.get_term())
+                print(score)
+            l.skip_forward_to_document(d)
+            l.increment()
+        if len(R) > k:
+            heapq.heappushpop(R, (score, index.get_docid_from_index(d)))
+            if verbose:
+                print("Replaced heap")
+        else:
+            heapq.heappush(R, (score, index.get_docid_from_index(d)))
+            if verbose:
+                print("Pushed to heap")
+    result = [heapq.heappop(R) for _ in range(min(k, len(R)))]
+    if verbose:
+        print(result)
+    return result
+
+def document_at_a_time(query, index, models, k, docidx_docid):
+    L = []
+    R = []
+    for term in analyze_query(query):
+        l = index.get_inverted_list(term)
+        L.append(l)
+    # Sort array of inverted lists by smallest list first
+    L = sorted(L, key=lambda item: item.get_list_len())
+    docidx_docid = {}
+
+
     d = -1
+    longest_doc = None
     finished = False
     while(not finished):
         score = 0
         for l in L:
-            # print(l)
             doc = l.get_current_doc()
-            # print(doc)
             if doc is None:
                 continue
-            if doc > d:
-                d = doc
+            type(doc)
+            doc_length = docidx_docid[doc][1]
+            if doc_length > d:
+                d = doc_length
+                longest_doc = doc
+        assert d != -1
+        assert d == index.get_n_of_words_in_inverted_list_doc(longest_doc)
         for l in L:
-            if l.skip_forward_to_document(d):
-                score += models.bm25_term(index.get_docid_from_index(d), l.get_term())
+            l.skip_forward_to_document(longest_doc)
+            if l.get_current_doc() == longest_doc:
+                # score += models.bm25_term(index.get_docid_from_index(longest_doc), l.get_term())
+                score += models.bm25_term(docidx_docid[longest_doc][0], l.get_term())
                 l.increment()
-            # elif l.get_current_doc() is not None:
             else:
-                pass
-                # d = -1
-                # print("HUH!")
-                # break
+                d = -1
         if d > -1:
-            if verbose:
-                print("Pushed to heap")
-            heapq.heappush(R, (score, index.get_docid_from_index(d)))
-        # print([l.is_finished() for l in L])
+            if len(R) < k:
+                heapq.heappush(R, (score, longest_doc))
+            else:
+                heapq.heappushpop(R, (score, longest_doc))
         finished = any([l.is_finished() for l in L])
-    result = [heapq.heappop(R) for _ in range(min(k, len(R)))]
+    result = sorted(list(set([heapq.heappop(R) for _ in range(min(k, len(R)))])), key=lambda item : item[0], reverse=True)
     if verbose:
         print(result)
     return result
@@ -174,9 +211,10 @@ def pytrec_evaluation(runfile, qrelfile, measures = pytrec_eval.supported_measur
 def main():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
+    parser.add_argument("-cp", "--compute_pickle", action="store_true", default=False)
     parser.add_argument('-query', default="covid symptoms")
     parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
-    parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=1)
+    parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=999)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     args = parser.parse_args()
     query = args.query
@@ -189,18 +227,28 @@ def main():
     models = Models(index_reader, searcher)
     trec_index = Index(index_reader, searcher)
 
+    if args.compute_pickle:
+        print("Computing id index dict")
+        docidx_docid = {docidx : (trec_index.get_docid_from_index(docidx), trec_index.get_n_of_words_in_inverted_list_doc(docidx)) for docidx in range(trec_index.get_max_docindex())}
+        with open('filename.pickle', 'wb') as handle:
+            pickle.dump(docidx_docid, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open('filename.pickle', 'rb') as handle:
+        print("Loading id index dict")
+        docidx_docid = pickle.load(handle)
+        print(docidx_docid[int(str(14))])
+    print("Finished initializing id index dict")
+
     if args.json:
         # only need to do this once, program small MD5 or something
         write_topics_to_json("topics-rnd5.xml")
 
     topics = read_json_topics("topics.json")
     # print(document_at_a_time(topics[str(1)]["query"], trec_index, models, 10))
-
     try:
         with open("ranking.txt", 'w') as outfile:
-            for idx in range(1, min(args.n_queries+1, 50)):
-                for (score, docid) in document_at_a_time(topics[str(idx)]["query"], trec_index, models, 50):
-                    outfile.write(write_output(idx, docid, -1, score, "testrun"))
+            for idx in range(1, min(args.n_queries+1, len(topics)+1)):
+                for i, (score, docid) in enumerate(document_at_a_time(topics[str(idx)]["query"], trec_index, models, 100, docidx_docid), 1):
+                    outfile.write(write_output(idx, trec_index.get_docid_from_index(docid), i, score, "testrun"))
     finally:
         outfile.close()
 
