@@ -52,7 +52,6 @@ def score_query(query, model, index_class, models_class, topic_id, rerank_m, top
     naar documenten waarin minimaal 2 woorden zitten? (50%)
     --> Iig moeten we hier iets voor bedenken denk ik.
     """
-
     if rerank_m != "none":
          # during testing, take random set of X documents
          # this should be done after tf-idf / bm25, but takes too long now to test rocchio.
