@@ -67,9 +67,9 @@ class Index:
         self.index_reader = index
         self.searcher = searcher
 
-    def get_docids(self, term, max_doc=192459) -> []:
+    def get_docids(self, max_doc=192459) -> []:
         """ gets ALL docids by default order until the max_doc limit (defaults to num_docs) """
-        return [self.searcher.doc(i).docid() for i in range(self.searcher.num_docs)]
+        return [self.searcher.doc(i).docid() for i in range(max_doc)]
 
     def get_max_docindex(self):
         return self.searcher.num_docs

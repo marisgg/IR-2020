@@ -121,7 +121,11 @@ def preprocess_query(query):
     stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
     return [word for word in query.split() if word not in stop_words]
 
+<<<<<<< HEAD
 def score_query(query, model, docs, index_class, models_class):
+=======
+def score_query(query, model, index_class, models_class, topic_id):
+>>>>>>> master
     doc_scores = {}
     count = 0
     if verbose:
@@ -170,21 +174,23 @@ def get_docs_and_score_query(query, model, index_class, models_class, k):
     query = analyze_query(query)
     print(query)
 
-    # TODO: Get documents in which percentage of query terms exist? 
-    """
-    Ik stel het volgende voor (zonder onderbouwing verder): als query > 3 woorden bevat, kijken we
-    naar documenten waarin minimaal 2 woorden zitten? (50%)
-    --> Iig moeten we hier iets voor bedenken denk ik.
-    """
     for term in query:
         docs = index_class.get_docids_from_postings(term, return_set = docs, debug=True)
         if verbose:
             print(term)
             print(len(docs))
 
-    doc_scores = score_query(query, model, docs, index_class, models_class)
+    if model == "rocchio":
+         # during testing, take random set of 100 documents
+        top_k_docs = index_class.get_docids(100)
+        
+        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
+    else:
+        doc_scores = score_query(query, model, docs, index_class, models_class)
 
-    # TODO: Take the top 1000 for output writing
+    ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
+    ## Assume that the top-k ranked documents are relevant. 
+
     ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)[:k])
     return ordered_doc_scores
 
@@ -212,12 +218,10 @@ def main():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
     parser.add_argument("-cp", "--compute_pickle", action="store_true", default=False)
-    parser.add_argument('-query', default="covid symptoms")
     parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
     parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=999)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     args = parser.parse_args()
-    query = args.query
     global verbose
     verbose = args.verbose
     model = args.model
@@ -260,7 +264,6 @@ def main():
                         outfile.write(write_output(idx, docid, i, score, "score_query"))
         finally:
             outfile.close()
-
 
     results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
     with open("results.json", 'w') as outjson:
