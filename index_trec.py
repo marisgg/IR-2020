@@ -104,7 +104,9 @@ class Index:
                 for posting in postings:
                     try:
                         docnum = posting.docid
-                        return_set |= set([docnum])
+                        doc = self.searcher.doc(docnum)
+                        docid = doc.docid()
+                        return_set |= set([docid])
                     except:
                         continue
             return return_set

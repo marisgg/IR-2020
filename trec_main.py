@@ -55,10 +55,8 @@ def document_at_a_time(query, index, models, k, docidx_docid):
         L.append(l)
     # Sort array of inverted lists by smallest list first
     L = sorted(L, key=lambda item: item.get_list_len())
-    docidx_docid = {}
-
-
     d = -1
+    found = []
     longest_doc = None
     finished = False
     while(not finished):
@@ -67,7 +65,6 @@ def document_at_a_time(query, index, models, k, docidx_docid):
             doc = l.get_current_doc()
             if doc is None:
                 continue
-            type(doc)
             doc_length = docidx_docid[doc][1]
             if doc_length > d:
                 d = doc_length
@@ -78,17 +75,20 @@ def document_at_a_time(query, index, models, k, docidx_docid):
             l.skip_forward_to_document(longest_doc)
             if l.get_current_doc() == longest_doc:
                 # score += models.bm25_term(index.get_docid_from_index(longest_doc), l.get_term())
-                score += models.bm25_term(docidx_docid[longest_doc][0], l.get_term())
+                docid = docidx_docid[longest_doc][0]
+                # score += models.bm25_term(docid, l.get_term())
+                score += models.tf_idf_term(l.get_term(), docid)
                 l.increment()
             else:
                 d = -1
-        if d > -1:
+        if d > -1 and not docid in found:
             if len(R) < k:
-                heapq.heappush(R, (score, longest_doc))
+                heapq.heappush(R, (score, docidx_docid[longest_doc][0]))
             else:
-                heapq.heappushpop(R, (score, longest_doc))
+                heapq.heappushpop(R, (score, docidx_docid[longest_doc][0]))
+            found.append(docid)
         finished = any([l.is_finished() for l in L])
-    result = sorted(list(set([heapq.heappop(R) for _ in range(min(k, len(R)))])), key=lambda item : item[0], reverse=True)
+    result = sorted([heapq.heappop(R) for _ in range(min(k, len(R)))], key=lambda item : item[0], reverse=True)
     if verbose:
         print(result)
     return result
@@ -164,8 +164,11 @@ def analyze_query(query):
     query = analyzer.analyze(query)
     return query
 
-def get_docs_and_score_query(query, model, index_class, models_class):
+def get_docs_and_score_query(query, model, index_class, models_class, k):
     docs = set()
+
+    query = analyze_query(query)
+    print(query)
 
     # TODO: Get documents in which percentage of query terms exist? 
     """
@@ -179,13 +182,10 @@ def get_docs_and_score_query(query, model, index_class, models_class):
             print(term)
             print(len(docs))
 
-    if False:
-        doc_scores = score_bm25_query(query, model, docs, models_class)
-    else:
-        doc_scores = score_query(query, model, docs, index_class, models_class)
+    doc_scores = score_query(query, model, docs, index_class, models_class)
 
     # TODO: Take the top 1000 for output writing
-    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)[:10000])
+    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)[:k])
     return ordered_doc_scores
 
 def pytrec_dictionary_entry(qid, docid, score):
@@ -221,6 +221,7 @@ def main():
     global verbose
     verbose = args.verbose
     model = args.model
+    document_at_a = False
 
     index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
     searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
@@ -235,7 +236,6 @@ def main():
     with open('filename.pickle', 'rb') as handle:
         print("Loading id index dict")
         docidx_docid = pickle.load(handle)
-        print(docidx_docid[int(str(14))])
     print("Finished initializing id index dict")
 
     if args.json:
@@ -243,14 +243,24 @@ def main():
         write_topics_to_json("topics-rnd5.xml")
 
     topics = read_json_topics("topics.json")
-    # print(document_at_a_time(topics[str(1)]["query"], trec_index, models, 10))
-    try:
-        with open("ranking.txt", 'w') as outfile:
-            for idx in range(1, min(args.n_queries+1, len(topics)+1)):
-                for i, (score, docid) in enumerate(document_at_a_time(topics[str(idx)]["query"], trec_index, models, 100, docidx_docid), 1):
-                    outfile.write(write_output(idx, trec_index.get_docid_from_index(docid), i, score, "testrun"))
-    finally:
-        outfile.close()
+
+    if document_at_a:
+        try:
+            with open("ranking.txt", 'w') as outfile:
+                for idx in range(1, min(args.n_queries+1, len(topics)+1)):
+                    for i, (score, docid) in enumerate(document_at_a_time(topics[str(idx)]["query"], trec_index, models, 100, docidx_docid), 1):
+                        outfile.write(write_output(idx, docid, i, score, "document_at_a_time"))
+        finally:
+            outfile.close()
+    else:
+        try:
+            with open("ranking.txt", 'w') as outfile:
+                for idx in range(1, min(args.n_queries+1, len(topics)+1)):
+                    for i, (docid, score) in enumerate(get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models, 100).items(), 1):
+                        outfile.write(write_output(idx, docid, i, score, "score_query"))
+        finally:
+            outfile.close()
+
 
     results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
     with open("results.json", 'w') as outjson:
