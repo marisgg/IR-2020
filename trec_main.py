@@ -121,11 +121,7 @@ def preprocess_query(query):
     stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
     return [word for word in query.split() if word not in stop_words]
 
-<<<<<<< HEAD
 def score_query(query, model, docs, index_class, models_class):
-=======
-def score_query(query, model, index_class, models_class, topic_id):
->>>>>>> master
     doc_scores = {}
     count = 0
     if verbose:
@@ -168,7 +164,7 @@ def analyze_query(query):
     query = analyzer.analyze(query)
     return query
 
-def get_docs_and_score_query(query, model, index_class, models_class, k):
+def get_docs_and_score_query(query, model, index_class, models_class, topic_id, k):
     docs = set()
 
     query = analyze_query(query)
@@ -182,7 +178,7 @@ def get_docs_and_score_query(query, model, index_class, models_class, k):
 
     if model == "rocchio":
          # during testing, take random set of 100 documents
-        top_k_docs = index_class.get_docids(100)
+        top_k_docs = index_class.get_docids(k)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
     else:
@@ -260,7 +256,7 @@ def main():
         try:
             with open("ranking.txt", 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
-                    for i, (docid, score) in enumerate(get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models, 100).items(), 1):
+                    for i, (docid, score) in enumerate(get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models, idx, 100).items(), 1):
                         outfile.write(write_output(idx, docid, i, score, "score_query"))
         finally:
             outfile.close()

@@ -1,13 +1,11 @@
 import itertools
 import math
-from pyserini.search import SimpleSearcher
 import pandas as pd
 import collections
 from index_trec import Index
 import numpy as np
 from timer import Timer
 from tqdm import tqdm
-from pyserini.index import IndexReader
 
 class Models:
 
@@ -235,7 +233,3 @@ import plotly.express as px
 fig = px.histogram(relevance_data, x="topic_id", color = "relevancy")
 fig.show()
 """
-index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
-c_list = []
-for term in itertools.islice(index_reader.terms(), 0, None):
-    c_list.append(term.term)
