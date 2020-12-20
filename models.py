@@ -1,13 +1,11 @@
 import itertools
 import math
-from pyserini.search import SimpleSearcher
 import pandas as pd
 import collections
 from index_trec import Index
 import numpy as np
 from timer import Timer
 from tqdm import tqdm
-from pyserini.index import IndexReader
 
 class Models:
 
@@ -15,7 +13,6 @@ class Models:
         self.index_reader = index
         self.searcher = searcher
         self.N = self.index_reader.stats()['documents']
-        self.trec_index = Index(self.index_reader, self.searcher)
         self.t = Timer()
 
         # global variables for rocchio algorithm
@@ -25,7 +22,6 @@ class Models:
         self.relevance_data = None
         self.all_docs= []
         self.top_k_doc_vec = {}
-
 
     def get_n_of_words_in_docid(self, docid):
         """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
@@ -53,7 +49,6 @@ class Models:
         else:
             return 0.0
 
-
     def tf_idf_docid(self, docid) -> {}:
         tfs = self.index_reader.get_document_vector(docid)
         tf_idf = {}
@@ -62,8 +57,17 @@ class Models:
             tf_idf[term] = count/self.get_n_of_words_in_docid(docid) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
-    def bm25_term(self, term, docid) -> float:
+    def bm25_term(self, docid, term) -> float:
         return self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None)
+
+    def bm25(self, query, docid) -> float:
+        return self.index_reader.compute_bm25_term_weight(docid, query, analyzer=None)
+
+    def bm25_mapper(self, term):
+        return self.index_reader.compute_bm25_term_weight(self.doc, term, analyzer=None)
+
+    def bm25_query_score(self, docid, query):
+        return sum([self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in query])
 
     def bm25_docid(self, docid) -> {}:
         """ get all terms in documents """
@@ -71,8 +75,15 @@ class Models:
         bm25_vector = {term: self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in tfs.keys()}
         return bm25_vector
 
-      
-      
+    def bm25_docid_query(self, docid, query) -> float:
+        vec = self.bm25_docid(docid)
+        score = 0.0
+        for term in query:
+            try:
+                score += vec[term]
+            except:
+                pass
+        return score      
       
     def create_collection_list(self, top_k_docs):
         """
@@ -195,7 +206,7 @@ class Models:
         print("in rocchio ranking")
         self.t.start()
         if self.all_docs != [] :
-            self.all_docs = self.trec_index.get_docids() # ~ 30 seconds
+            self.all_docs = self.index_reader.get_docids() # ~ 30 seconds
         print("got all docs")
         self.t.stop()
         q_mod = self.rocchio_algorithm(qid, q0)
@@ -222,9 +233,3 @@ import plotly.express as px
 fig = px.histogram(relevance_data, x="topic_id", color = "relevancy")
 fig.show()
 """
-index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
-c_list = []
-for term in itertools.islice(index_reader.terms(), 0, None):
-    c_list.append(term.term)
-
-
