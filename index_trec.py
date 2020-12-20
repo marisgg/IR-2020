@@ -67,6 +67,9 @@ class Index:
         self.index_reader = index
         self.searcher = searcher
 
+    def get_external_docid(self, internal_docid):
+        return self.index_reader.convert_internal_docid_to_collection_docid(internal_docid)
+
     def get_docids(self, max_doc=192459) -> []:
         """ gets ALL docids by default order until the max_doc limit (defaults to num_docs) """
         return [self.searcher.doc(i).docid() for i in range(max_doc)]
@@ -93,7 +96,7 @@ class Index:
             # return [(term, (posting.docid, posting.tf)) for posting in postings]
 
 
-    def get_docids_from_postings(self, term, return_set = set(), max_doc=192459, debug=True) -> set():
+    def get_docids_from_postings(self, term, docidx_docid, return_set = set(), max_doc=192459, debug=True):
         """ Use postings and set union to get list of documents containing query words """
         if debug:
             try:
@@ -110,7 +113,10 @@ class Index:
                     except:
                         continue
             return return_set
-        return [self.searcher.doc(posting.docid).docid() for posting in self.index_reader.get_postings_list(term, analyzer=None) if posting is not None]
+        try:
+            return [docidx_docid[posting.docid][0] for posting in self.index_reader.get_postings_list(term, analyzer=None) if posting is not None]
+        except:
+            return []
 
     def term_in_doc(self, term, docid) -> bool:
         """ Don't use in production, overly complex """

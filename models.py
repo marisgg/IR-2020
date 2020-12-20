@@ -9,11 +9,13 @@ from tqdm import tqdm
 
 class Models:
 
-    def __init__(self, index, searcher):
+    def __init__(self, index, qrelfile):
         self.index_reader = index
-        self.searcher = searcher
         self.N = self.index_reader.stats()['documents']
         self.t = Timer()
+
+        self.qrelfile = qrelfile
+        self.df_vector = {}
 
         # global variables for rocchio algorithm
         # so that we only need to compute the document vectors once
@@ -23,9 +25,18 @@ class Models:
         self.all_docs= []
         self.top_k_doc_vec = {}
 
+    def compute_df_vector(self, term):
+        self.df_vector[term] = self.index_reader.get_term_counts(term, analyzer=None)[0]
+
+    def reset_df_vector(self):
+        self.df_vector = {}
+
     def get_n_of_words_in_docid(self, docid):
         """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
         return sum(self.index_reader.get_document_vector(docid).values())
+
+    def docid_length(self, docid):
+        return len([item for sublist in list(index_reader.get_term_positions(docid).values()) for item in sublist])
 
     """
     Compute TF-IDF, which consists of the following two components:
@@ -40,34 +51,42 @@ class Models:
     OUTPUT:     
     """
 
-    def tf_idf_term(self, term, docid) -> float:
-        tfs = self.index_reader.get_document_vector(docid)
-        if term in tfs:
-            tf = tfs[term]/self.get_n_of_words_in_docid(docid)
-            df = self.index_reader.get_term_counts(term, analyzer=None)[0]
+    def tf_idf_term(self, docid, term, use_vector=True, wordcount=None, tfs=None) -> float:
+        try:
+            # Might throw keyerror, then return 0.0 (doesn't exist)
+            if tfs is None:
+                tfs = self.index_reader.get_document_vector(docid)
+            if wordcount is None:
+                wordcount = self.get_n_of_words_in_docid(docid)
+            tf = tfs[term] / wordcount
+            if use_vector:
+                df = self.df_vector[term]
+            else:
+                df = self.index_reader.get_term_counts(term, analyzer=None)[0]
             return tf * math.log(self.N / (df + 1))
-        else:
+        except KeyError:
             return 0.0
 
-    def tf_idf_docid(self, docid) -> {}:
+    def tf_idf_docid(self, docid, wordcount=None) -> {}:
         tfs = self.index_reader.get_document_vector(docid)
         tf_idf = {}
+        if wordcount is None:
+            wordcount = self.get_n_of_words_in_docid(docid)
         for term, count in tfs.items():
             df = self.index_reader.get_term_counts(term, analyzer=None)[0]
-            tf_idf[term] = count/self.get_n_of_words_in_docid(docid) * math.log(self.N / (df + 1)) # added total number of words in doc
+            tf_idf[term] = (count / wordcount) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
-    def bm25_term(self, docid, term) -> float:
-        return self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None)
+    def tf_idf_query(self, docid, query) -> float:
+        tfs = self.index_reader.get_document_vector(docid)
+        wordcount = self.get_n_of_words_in_docid(docid)
+        return sum([self.tf_idf_term(docid, term, wordcount=wordcount, tfs=tfs) for term in query])
 
-    def bm25(self, query, docid) -> float:
-        return self.index_reader.compute_bm25_term_weight(docid, query, analyzer=None)
+    def bm25_term(self, docid, term, k1=0.9, b=0.4) -> float:
+        return self.index_reader.compute_bm25_term_weight(docid, term, k1=k1, b=b, analyzer=None)
 
-    def bm25_mapper(self, term):
-        return self.index_reader.compute_bm25_term_weight(self.doc, term, analyzer=None)
-
-    def bm25_query_score(self, docid, query):
-        return sum([self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in query])
+    def bm25_query_score(self, docid, query, k1=0.9, b=0.4) -> float:
+        return sum([self.bm25_term(docid, term, k1=k1, b=b) for term in query])
 
     def bm25_docid(self, docid) -> {}:
         """ get all terms in documents """
@@ -129,7 +148,7 @@ class Models:
         """
         Read file with relevance of part of the collection.
         """
-        self.relevance_data = pd.read_csv("qrels-covid_d5_j0.5-5.txt", sep=" ", header=None)
+        self.relevance_data = pd.read_csv(self.qrelfile, sep=" ", header=None)
         self.relevance_data.columns = ["topic_id", "round_id", "cord_uid", "relevancy"]
 
         self.relevance_data = self.relevance_data[self.relevance_data.relevancy >= 0] # File contains 2 rows with -1
