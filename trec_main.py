@@ -5,6 +5,7 @@ import json
 import xml.etree.ElementTree as ET
 import sys
 import heapq
+from timer import Timer
 from multiprocessing import Pool
 from pyserini.index import IndexReader
 from pyserini.search import SimpleSearcher
@@ -76,8 +77,8 @@ def document_at_a_time(query, index, models, k, docidx_docid):
             if l.get_current_doc() == longest_doc:
                 # score += models.bm25_term(index.get_docid_from_index(longest_doc), l.get_term())
                 docid = docidx_docid[longest_doc][0]
-                # score += models.bm25_term(docid, l.get_term())
-                score += models.tf_idf_term(l.get_term(), docid)
+                score += models.bm25_term(docid, l.get_term())
+                # score += models.tf_idf_term(docid, l.get_term())
                 l.increment()
             else:
                 d = -1
@@ -174,17 +175,16 @@ def analyze_query(query):
     query = analyzer.analyze(query)
     return query
 
-def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, rocchio=False, rocchio_rerank=False):
-    docs = set()
+def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, docidx_docid, rocchio=False, rocchio_rerank=False):
+    docs_list = []
 
     query = analyze_query(query)
     print(query)
 
     for term in query:
-        docs = index_class.get_docids_from_postings(term, return_set = docs, debug=True)
-        if verbose:
-            print(term)
-            print(len(docs))
+        docs = index_class.get_docids_from_postings(term, docidx_docid, debug=False)
+        docs_list.append(docs)
+    docs = set(itertools.chain.from_iterable(docs_list))
 
     if rocchio:
         if verbose:
@@ -230,6 +230,23 @@ def pytrec_evaluation(runfile, qrelfile, measures = pytrec_eval.supported_measur
 
     return evaluator.evaluate(run)
 
+def cheat(filename, models, index, docidx_docid):
+    cheat_dict = {}
+    bar = Bar("Creating tf-idf dictionary", max=(index.get_max_docindex()))
+    for doc in range(index.get_max_docindex()):
+        try:
+            docid = docidx_docid[doc][0]
+            doclen = docidx_docid[doc][1]
+            cheat_dict[doc] = models.tf_idf_docid(docid, doclen)
+            bar.next()
+        except:
+            print("Error!")
+            continue
+    bar.finish()
+    with open(filename, 'wb') as handle:
+        pickle.dump(cheat_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print("Dumped dictionary")
+
 def main():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
@@ -258,10 +275,11 @@ def main():
         docidx_docid = {docidx : (trec_index.get_docid_from_index(docidx), trec_index.get_n_of_words_in_inverted_list_doc(docidx)) for docidx in range(trec_index.get_max_docindex())}
         with open('filename.pickle', 'wb') as handle:
             pickle.dump(docidx_docid, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    with open('filename.pickle', 'rb') as handle:
-        print("Loading id index dict")
-        docidx_docid = pickle.load(handle)
-    print("Finished initializing id index dict")
+    if True:
+        with open('filename.pickle', 'rb') as handle:
+            print("Loading id index dict")
+            docidx_docid = pickle.load(handle)
+        print("Finished initializing id index dict")
 
     if args.json:
         # only need to do this once, program small MD5 or something
@@ -294,7 +312,7 @@ def main():
             with open("ranking.txt", 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
                     for i, (score, docid) in enumerate(
-                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, rocchio=rocchio, rocchio_rerank=rocchio_rerank), 1):
+                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, docidx_docid, rocchio=rocchio, rocchio_rerank=rocchio_rerank), 1):
                         outfile.write(write_output(idx, docid, i, score, "score_query"))
         finally:
             outfile.close()

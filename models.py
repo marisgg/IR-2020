@@ -42,25 +42,32 @@ class Models:
     OUTPUT:     
     """
 
-    def tf_idf_term(self, docid, term) -> float:
+    def tf_idf_term(self, docid, term, wordcount=None, tfs=None) -> float:
         try:
             # Might throw keyerror, then return 0.0 (doesn't exist)
-            tf = self.index_reader.get_document_vector(docid)[term] / self.get_n_of_words_in_docid(docid)
+            if tfs is None:
+                tfs = self.index_reader.get_document_vector(docid)
+            if wordcount is None:
+                wordcount = self.get_n_of_words_in_docid(docid)
+            tf = tfs[term] / wordcount
             df = self.index_reader.get_term_counts(term, analyzer=None)[0]
             return tf * math.log(self.N / (df + 1))
         except KeyError:
             return 0.0
 
-    def tf_idf_docid(self, docid) -> {}:
+    def tf_idf_docid(self, docid, wordcount=None) -> {}:
         tfs = self.index_reader.get_document_vector(docid)
         tf_idf = {}
+        if wordcount is None:
+            wordcount = self.get_n_of_words_in_docid(docid)
         for term, count in tfs.items():
             df = self.index_reader.get_term_counts(term, analyzer=None)[0]
-            tf_idf[term] = (count/self.get_n_of_words_in_docid(docid)) * math.log(self.N / (df + 1)) # added total number of words in doc
+            tf_idf[term] = (count / wordcount) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
     def tf_idf_query(self, docid, query) -> float:
-        return sum([self.tf_idf_term(docid, term) for term in query])
+        tfs = self.index_reader.get_document_vector(docid)
+        return sum([self.tf_idf_term(docid, term, wordcount=self.get_n_of_words_in_docid(docid), tfs=tfs) for term in query])
 
     def bm25_term(self, docid, term, k1=0.9, b=0.4) -> float:
         return self.index_reader.compute_bm25_term_weight(docid, term, k1=k1, b=b, analyzer=None)
