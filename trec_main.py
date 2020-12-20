@@ -5,8 +5,6 @@ import json
 import xml.etree.ElementTree as ET
 import sys
 import heapq
-from timer import Timer
-from multiprocessing import Pool
 from pyserini.index import IndexReader
 from pyserini.search import SimpleSearcher
 from pyserini.analysis import Analyzer, get_lucene_analyzer
@@ -16,6 +14,11 @@ from output import write_output
 from models import Models
 from index_trec import Index, InvertedList
 import pickle
+import time
+
+lucene_index = "lucene-index-cord19-abstract-2020-07-16"
+qrelfile = "input/qrels-covid_d5_j0.5-5.txt"
+topicsfile = "input/topics-rnd5.xml"
 
 def dummy_document_at_a_time(query, index, models, k):
     L = []
@@ -128,6 +131,8 @@ def score_query_heap(query, ranking_function, docs, index_class, models_class, k
     if verbose:
         print(query)
         bar = Bar("Computing scores for query", max=(len(docs)))
+    for term in query:
+        models_class.compute_df_vector(term)
     for doc in docs:
         score = ranking_function(models_class, doc, query)
         if verbose:
@@ -137,7 +142,8 @@ def score_query_heap(query, ranking_function, docs, index_class, models_class, k
         else:
             heapq.heappushpop(R, (score, doc))
     if verbose:
-        bar.finish()   
+        bar.finish()
+    # models_class.reset_df_vector()
     return sorted([(score, doc_id) for score, doc_id in R], key=lambda item : item[0], reverse=True)
 
 def score_query(query, ranking_function, docs, index_class, models_class):
@@ -146,6 +152,8 @@ def score_query(query, ranking_function, docs, index_class, models_class):
     if verbose:
         print(query)
         bar = Bar("Computing scores for query", max=(len(docs)))
+    for term in query:
+        models_class.compute_df_vector(term)
     for doc in docs:
         score = ranking_function(models_class, doc, query)
         if verbose:
@@ -153,14 +161,17 @@ def score_query(query, ranking_function, docs, index_class, models_class):
         if score > 0:
             doc_scores[doc] = score
     if verbose:
-        bar.finish()   
+        bar.finish()
+    models_class.reset_df_vector()
     return doc_scores
 
 def score_tf_idf(m_class, doc, query):
     return m_class.tf_idf_query(doc, query)
 
+k1_param = 0.9
+b_param = 0.4
 def score_bm25(m_class, doc, query):
-    return m_class.bm25_query_score(doc, query)
+    return m_class.bm25_query_score(doc, query, k1=k1_param, b=b_param)
 
 def score_bm25_query(query, model, docs, models_class):
     doc_scores = {}
@@ -247,11 +258,10 @@ def cheat(filename, models, index, docidx_docid):
         pickle.dump(cheat_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print("Dumped dictionary")
 
-def main():
+def run():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
     parser.add_argument("-cp", "--compute_pickle", action="store_true", default=False)
-    parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
     parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=999)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     parser.add_argument("-d", "--doc_at_a_time", help="Use document_at_a_time algorithm", action="store_true", default=False)
@@ -265,9 +275,9 @@ def main():
     k = args.k_docs
     rocchio_rerank = args.rocchio_rerank
 
-    index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
-    searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
-    models = Models(index_reader)
+    index_reader = IndexReader(lucene_index)
+    searcher = SimpleSearcher(lucene_index)
+    models = Models(index_reader, qrelfile)
     trec_index = Index(index_reader, searcher)
 
     if args.compute_pickle:
@@ -281,11 +291,7 @@ def main():
             docidx_docid = pickle.load(handle)
         print("Finished initializing id index dict")
 
-    if args.json:
-        # only need to do this once, program small MD5 or something
-        write_topics_to_json("topics-rnd5.xml")
-
-    topics = read_json_topics("topics.json")
+    topics = parse_topics(topicsfile)
 
     rocchio = False
     if model == "bm25":
@@ -299,9 +305,14 @@ def main():
         print("Model should be 'tf_idf', 'bm25' (default) or 'rocchio'!")
         sys.exit(1)
 
+    t = time.localtime()
+    current_time = time.strftime("%H:%M", t)
+    rankfile = "output/ranking-{0}-{1}.txt".format(model, current_time)
+    resultfile = "output/results-{0}-{1}.json".format(model, current_time)
+
     if doc_at_a_time:
         try:
-            with open("ranking.txt", 'w') as outfile:
+            with open(rankfile, 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
                     for i, (score, docid) in enumerate(document_at_a_time(topics[str(idx)]["query"], trec_index, models, k, docidx_docid), 1):
                         outfile.write(write_output(idx, docid, i, score, "document_at_a_time"))
@@ -309,7 +320,7 @@ def main():
             outfile.close()
     else:
         try:
-            with open("ranking.txt", 'w') as outfile:
+            with open(rankfile, 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
                     for i, (score, docid) in enumerate(
                         get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, docidx_docid, rocchio=rocchio, rocchio_rerank=rocchio_rerank), 1):
@@ -317,9 +328,12 @@ def main():
         finally:
             outfile.close()
 
-    results = pytrec_evaluation("ranking.txt", "qrels-covid_d5_j0.5-5.txt")
-    with open("results.json", 'w') as outjson:
+    results = pytrec_evaluation(rankfile, qrelfile)
+    with open(resultfile, 'w') as outjson:
         json.dump(results, outjson)
+
+def main():
+    run()
 
 if __name__ == "__main__":
     main()
