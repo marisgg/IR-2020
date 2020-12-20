@@ -9,9 +9,8 @@ from tqdm import tqdm
 
 class Models:
 
-    def __init__(self, index, searcher):
+    def __init__(self, index):
         self.index_reader = index
-        self.searcher = searcher
         self.N = self.index_reader.stats()['documents']
         self.t = Timer()
 
@@ -27,6 +26,9 @@ class Models:
         """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
         return sum(self.index_reader.get_document_vector(docid).values())
 
+    def docid_length(self, docid):
+        return len([item for sublist in list(index_reader.get_term_positions(docid).values()) for item in sublist])
+
     """
     Compute TF-IDF, which consists of the following two components:
     1. Term frequency: measures the frequency of a word in a document, normalize.
@@ -40,13 +42,13 @@ class Models:
     OUTPUT:     
     """
 
-    def tf_idf_term(self, term, docid) -> float:
-        tfs = self.index_reader.get_document_vector(docid)
-        if term in tfs:
-            tf = tfs[term]/self.get_n_of_words_in_docid(docid)
+    def tf_idf_term(self, docid, term) -> float:
+        try:
+            # Might throw keyerror, then return 0.0 (doesn't exist)
+            tf = self.index_reader.get_document_vector(docid)[term] / self.get_n_of_words_in_docid(docid)
             df = self.index_reader.get_term_counts(term, analyzer=None)[0]
             return tf * math.log(self.N / (df + 1))
-        else:
+        except KeyError:
             return 0.0
 
     def tf_idf_docid(self, docid) -> {}:
@@ -54,20 +56,17 @@ class Models:
         tf_idf = {}
         for term, count in tfs.items():
             df = self.index_reader.get_term_counts(term, analyzer=None)[0]
-            tf_idf[term] = count/self.get_n_of_words_in_docid(docid) * math.log(self.N / (df + 1)) # added total number of words in doc
+            tf_idf[term] = (count/self.get_n_of_words_in_docid(docid)) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
-    def bm25_term(self, docid, term) -> float:
-        return self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None)
+    def tf_idf_query(self, docid, query) -> float:
+        return sum([self.tf_idf_term(docid, term) for term in query])
 
-    def bm25(self, query, docid) -> float:
-        return self.index_reader.compute_bm25_term_weight(docid, query, analyzer=None)
+    def bm25_term(self, docid, term, k1=0.9, b=0.4) -> float:
+        return self.index_reader.compute_bm25_term_weight(docid, term, k1=k1, b=b, analyzer=None)
 
-    def bm25_mapper(self, term):
-        return self.index_reader.compute_bm25_term_weight(self.doc, term, analyzer=None)
-
-    def bm25_query_score(self, docid, query):
-        return sum([self.index_reader.compute_bm25_term_weight(docid, term, analyzer=None) for term in query])
+    def bm25_query_score(self, docid, query, k1=0.9, b=0.4) -> float:
+        return sum([self.bm25_term(docid, term, k1=k1, b=b) for term in query])
 
     def bm25_docid(self, docid) -> {}:
         """ get all terms in documents """

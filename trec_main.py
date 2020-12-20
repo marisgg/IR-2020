@@ -88,7 +88,7 @@ def document_at_a_time(query, index, models, k, docidx_docid):
                 heapq.heappushpop(R, (score, docidx_docid[longest_doc][0]))
             found.append(docid)
         finished = any([l.is_finished() for l in L])
-    result = sorted([heapq.heappop(R) for _ in range(min(k, len(R)))], key=lambda item : item[0], reverse=True)
+    result = sorted([(score, doc_id) for score, doc_id in R], key=lambda item : item[0], reverse=True)
     if verbose:
         print(result)
     return result
@@ -121,35 +121,45 @@ def preprocess_query(query):
     stop_words = ["a","about","after","all","also","always","am","an","and","any","are","at","be","been","being","but","by","came","can","cant","come","could","did","didnt","do","does","doesnt","doing","dont","else","for","from","get","give","goes","going","had","happen","has","have","having","how","i","if","ill","im","in","into","is","isnt","it","its","ive","just","keep","let","like","made","make","many","may","me","mean","more","most","much","no","not","now","of","only","or","our","really","say","see","some","something","take","tell","than","that","the","their","them","then","there","they","thing","this","to","try","up","us","use","used","uses","very","want","was","way","we","what","when","where","which","who","why","will","with","without","wont","you","your","youre"]
     return [word for word in query.split() if word not in stop_words]
 
-def score_query(query, model, docs, index_class, models_class):
+def score_query_heap(query, ranking_function, docs, index_class, models_class, k):
+    R = []
+    count = 0
+    if verbose:
+        print(query)
+        bar = Bar("Computing scores for query", max=(len(docs)))
+    for doc in docs:
+        score = ranking_function(models_class, doc, query)
+        if verbose:
+            bar.next()
+        if len(R) < k:
+            heapq.heappush(R, (score, doc))
+        else:
+            heapq.heappushpop(R, (score, doc))
+    if verbose:
+        bar.finish()   
+    return sorted([(score, doc_id) for score, doc_id in R], key=lambda item : item[0], reverse=True)
+
+def score_query(query, ranking_function, docs, index_class, models_class):
     doc_scores = {}
     count = 0
     if verbose:
         print(query)
         bar = Bar("Computing scores for query", max=(len(docs)))
-    if model == "bm25":
-        for doc in docs:
-            score = models_class.bm25_query_score(doc, query)
-            if verbose:
-                bar.next()
-            if score > 0:
-                doc_scores[doc] = score
-    elif model == "tf_idf":
-        for doc in docs:
-            score = 0
-            for term in query:
-                score += models_class.tf_idf_term(term, doc)
-                count += 1
-                if verbose and count % 1000 == 0:
-                    bar.next()
-            if score > 0:
-                doc_scores[doc] = score
+    for doc in docs:
+        score = ranking_function(models_class, doc, query)
+        if verbose:
+            bar.next()
+        if score > 0:
+            doc_scores[doc] = score
     if verbose:
         bar.finish()   
     return doc_scores
 
-def score_bm25():
-    pass
+def score_tf_idf(m_class, doc, query):
+    return m_class.tf_idf_query(doc, query)
+
+def score_bm25(m_class, doc, query):
+    return m_class.bm25_query_score(doc, query)
 
 def score_bm25_query(query, model, docs, models_class):
     doc_scores = {}
@@ -164,7 +174,7 @@ def analyze_query(query):
     query = analyzer.analyze(query)
     return query
 
-def get_docs_and_score_query(query, model, index_class, models_class, topic_id, k):
+def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, rocchio=False, rocchio_rerank=False):
     docs = set()
 
     query = analyze_query(query)
@@ -176,19 +186,29 @@ def get_docs_and_score_query(query, model, index_class, models_class, topic_id, 
             print(term)
             print(len(docs))
 
-    if model == "rocchio":
+    if rocchio:
+        if verbose:
+            print("Using Rocchio as primary ranking function.")
          # during testing, take random set of 100 documents
         top_k_docs = index_class.get_docids(k)
         
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
     else:
-        doc_scores = score_query(query, model, docs, index_class, models_class)
+        doc_scores = score_query_heap(query, ranking_function, docs, index_class, models_class, k)
+
+    if rocchio_rerank:
+        if verbose:
+            print("Using Rocchio for reranking")
+        top_k_docs = list(map(lambda x : x[1], doc_scores[:k]))
+        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs)
 
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
     ## Assume that the top-k ranked documents are relevant. 
 
-    ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)[:k])
-    return ordered_doc_scores
+    # ordered_doc_scores = dict(sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)[:k])
+    # return ordered_doc_scores
+
+    return doc_scores
 
 def pytrec_dictionary_entry(qid, docid, score):
     """ Create dictionary entry to update the total run output for pytrec_eval """
@@ -217,15 +237,20 @@ def main():
     parser.add_argument("-j", "--json", help="generate json from topics list", action="store_true", default=False)
     parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=999)
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
+    parser.add_argument("-d", "--doc_at_a_time", help="Use document_at_a_time algorithm", action="store_true", default=False)
+    parser.add_argument("-k", "--k_docs", help="Numer of documents to retrieve", type=int, default=100)
+    parser.add_argument("-r", "--rocchio_rerank", help="Use rocchio algorithm for reranking", action="store_true", default=False)
     args = parser.parse_args()
     global verbose
     verbose = args.verbose
     model = args.model
-    document_at_a = False
+    doc_at_a_time = args.doc_at_a_time
+    k = args.k_docs
+    rocchio_rerank = args.rocchio_rerank
 
     index_reader = IndexReader('lucene-index-cord19-abstract-2020-07-16')
     searcher = SimpleSearcher('lucene-index-cord19-abstract-2020-07-16')
-    models = Models(index_reader, searcher)
+    models = Models(index_reader)
     trec_index = Index(index_reader, searcher)
 
     if args.compute_pickle:
@@ -244,11 +269,23 @@ def main():
 
     topics = read_json_topics("topics.json")
 
-    if document_at_a:
+    rocchio = False
+    if model == "bm25":
+        rankfun = score_bm25
+    elif model == "tf_idf":
+        rankfun = score_tf_idf
+    elif model == "rocchio":
+        rankfun = None
+        rocchio = True
+    else:
+        print("Model should be 'tf_idf', 'bm25' (default) or 'rocchio'!")
+        sys.exit(1)
+
+    if doc_at_a_time:
         try:
             with open("ranking.txt", 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
-                    for i, (score, docid) in enumerate(document_at_a_time(topics[str(idx)]["query"], trec_index, models, 100, docidx_docid), 1):
+                    for i, (score, docid) in enumerate(document_at_a_time(topics[str(idx)]["query"], trec_index, models, k, docidx_docid), 1):
                         outfile.write(write_output(idx, docid, i, score, "document_at_a_time"))
         finally:
             outfile.close()
@@ -256,7 +293,8 @@ def main():
         try:
             with open("ranking.txt", 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
-                    for i, (docid, score) in enumerate(get_docs_and_score_query(topics[str(idx)]["query"], model, trec_index, models, idx, 100).items(), 1):
+                    for i, (score, docid) in enumerate(
+                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, rocchio=rocchio, rocchio_rerank=rocchio_rerank), 1):
                         outfile.write(write_output(idx, docid, i, score, "score_query"))
         finally:
             outfile.close()
