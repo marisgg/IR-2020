@@ -17,9 +17,9 @@ from output import write_output
 from models import Models
 from index_trec import Index, InvertedList
 
-lucene_index = "lucene-index-cord19-abstract-2020-05-19"
-qrelfile = "input/qrels-covid_d3_j0.5-3.txt"
-topicsfile = "input/topics-rnd3.xml"
+lucene_index = "lucene-index-cord19-abstract-2020-07-16"
+qrelfile = "input/qrels-covid_d5_j0.5-5.txt"
+topicsfile = "input/topics-rnd5.xml"
 
 def dummy_document_at_a_time(query, index, models, k):
     L = []
@@ -189,12 +189,13 @@ def get_docs_and_score_query(query, ranking_function, index_class, models_class,
     docs = set(itertools.chain.from_iterable(docs_list))
 
     doc_scores = score_query_heap(query, ranking_function, docs, index_class, models_class, k)
-    print(doc_scores)
+    # print(doc_scores)
 
     if rerank != "none":
         if verbose:
             print("Using {rerank} for reranking")
-        top_k_docs = list(map(lambda x : x[1], doc_scores[:k]))
+        top_k_docs = list(map(lambda x : x[1], doc_scores))
+        # print(top_k_docs)
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs, rerank)
         doc_scores = sorted([(v, k) for k, v in doc_scores.items()], key=lambda item : item[0], reverse=True)
 

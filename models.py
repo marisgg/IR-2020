@@ -130,8 +130,6 @@ class Models:
         """
         for doc in top_k_docs:
             self.top_k_doc_vec[doc] = self.index_reader.get_document_vector(doc)
-            print(doc)
-            print(self.index_reader.get_document_vector(doc))
             for term in self.top_k_doc_vec[doc].keys():
                 if not term in self.c_list:
                     self.c_list.append(term)
@@ -306,6 +304,7 @@ class Models:
         #print(doc_scores)
         print("TOTAL ROCCHIO TIME: ")
         rocchio_timer.stop()
+        self.c_list = []
         return doc_scores
 
 """
