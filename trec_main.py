@@ -321,7 +321,7 @@ def run():
         finally:
             outfile.close()
 
-    results = pytrec_evaluation(rankfile, qrelfile)
+    results = pytrec_evaluation(rankfile, QRELFILE)
     with open(resultfile, 'w') as outjson:
         json.dump(results, outjson)
 
