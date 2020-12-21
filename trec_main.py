@@ -279,10 +279,10 @@ def run():
     if args.compute_pickle:
         print("Computing id index dict")
         docidx_docid = {docidx : (trec_index.get_docid_from_index(docidx), trec_index.get_n_of_words_in_inverted_list_doc(docidx)) for docidx in range(trec_index.get_max_docindex())}
-        with open('mapping.pickle', 'wb') as handle:
+        with open('blob/mapping.pickle', 'wb') as handle:
             pickle.dump(docidx_docid, handle, protocol=pickle.HIGHEST_PROTOCOL)
     if True:
-        with open('mapping.pickle', 'rb') as handle:
+        with open('blob/mapping.pickle', 'rb') as handle:
             print("Loading id index dict")
             docidx_docid = pickle.load(handle)
         print("Finished initializing id index dict")
