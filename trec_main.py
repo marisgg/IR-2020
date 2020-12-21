@@ -5,6 +5,9 @@ import json
 import xml.etree.ElementTree as ET
 import sys
 import heapq
+import os
+import pickle
+import time
 from pyserini.index import IndexReader
 from pyserini.search import SimpleSearcher
 from pyserini.analysis import Analyzer, get_lucene_analyzer
@@ -13,8 +16,6 @@ import pytrec_eval
 from output import write_output
 from models import Models
 from index_trec import Index, InvertedList
-import pickle
-import time
 
 lucene_index = "lucene-index-cord19-abstract-2020-07-16"
 qrelfile = "input/qrels-covid_d5_j0.5-5.txt"
@@ -168,8 +169,6 @@ def score_query(query, ranking_function, docs, index_class, models_class):
 def score_tf_idf(m_class, doc, query):
     return m_class.tf_idf_query(doc, query)
 
-k1_param = 0.9
-b_param = 0.4
 def score_bm25(m_class, doc, query):
     return m_class.bm25_query_score(doc, query, k1=k1_param, b=b_param)
 
@@ -258,7 +257,7 @@ def cheat(filename, models, index, docidx_docid):
         pickle.dump(cheat_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print("Dumped dictionary")
 
-def run():
+def run(k1=0.9, b=0.4):
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
     parser.add_argument("-cp", "--compute_pickle", action="store_true", default=False)
@@ -267,6 +266,10 @@ def run():
     parser.add_argument("-d", "--doc_at_a_time", help="Use document_at_a_time algorithm", action="store_true", default=False)
     parser.add_argument("-k", "--k_docs", help="Numer of documents to retrieve", type=int, default=100)
     parser.add_argument("-r", "--rocchio_rerank", help="Use rocchio algorithm for reranking", action="store_true", default=False)
+    global k1_param
+    global b_param
+    k1_param = k1
+    b_param = b
     args = parser.parse_args()
     global verbose
     verbose = args.verbose
@@ -280,6 +283,12 @@ def run():
     models = Models(index_reader, qrelfile)
     trec_index = Index(index_reader, searcher)
 
+    with open("tf_idf.pickle", 'rb') as handle:
+        dtfidf = pickle.load(handle)
+
+    if not os.path.exists('output'):
+        os.makedirs('output')
+
     if args.compute_pickle:
         print("Computing id index dict")
         docidx_docid = {docidx : (trec_index.get_docid_from_index(docidx), trec_index.get_n_of_words_in_inverted_list_doc(docidx)) for docidx in range(trec_index.get_max_docindex())}
@@ -290,6 +299,9 @@ def run():
             print("Loading id index dict")
             docidx_docid = pickle.load(handle)
         print("Finished initializing id index dict")
+
+        models.set_docid_tf_idf(dtfidf, {v[0]: k for k, v in docidx_docid.items()})
+        dtfidf = None
 
     topics = parse_topics(topicsfile)
 
@@ -307,8 +319,8 @@ def run():
 
     t = time.localtime()
     current_time = time.strftime("%H:%M", t)
-    rankfile = "output/ranking-{0}-{1}.txt".format(model, current_time)
-    resultfile = "output/results-{0}-{1}.json".format(model, current_time)
+    rankfile = "output/benchmark/ranking-{0}-{1}-k1{2}-b{3}.txt".format(model, current_time, k1_param, b_param)
+    resultfile = "output/benchmark/results-{0}-{1}-k1{2}-b{3}.json".format(model, current_time, k1_param, b_param)
 
     if doc_at_a_time:
         try:

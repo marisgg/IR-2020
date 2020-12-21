@@ -17,6 +17,9 @@ class Models:
         self.qrelfile = qrelfile
         self.df_vector = {}
 
+        self.docid_tf_idf = {}
+        self.docids = {}
+
         # global variables for rocchio algorithm
         # so that we only need to compute the document vectors once
         # and only need to adjust the query vector for the new query
@@ -30,6 +33,10 @@ class Models:
 
     def reset_df_vector(self):
         self.df_vector = {}
+
+    def set_docid_tf_idf(self, tf_idf_dict, idxs):
+        self.docid_tf_idf = tf_idf_dict
+        self.docids = idxs
 
     def get_n_of_words_in_docid(self, docid):
         """ Hacky: Sum all term frequencies in document vector (thus no stopwords) """
@@ -67,7 +74,10 @@ class Models:
         except KeyError:
             return 0.0
 
-    def tf_idf_docid(self, docid, wordcount=None) -> {}:
+    def tf_idf_docid(self, docid):
+        return self.docid_tf_idf[self.docids[docid]]
+
+    def tf_idf_docid_old(self, docid, wordcount=None) -> {}:
         tfs = self.index_reader.get_document_vector(docid)
         tf_idf = {}
         if wordcount is None:
@@ -77,7 +87,16 @@ class Models:
             tf_idf[term] = (count / wordcount) * math.log(self.N / (df + 1)) # added total number of words in doc
         return tf_idf
 
-    def tf_idf_query(self, docid, query) -> float:
+    def tf_idf_query(self, docid, query):
+        score = 0
+        for term in query:
+            try:
+                score += self.docid_tf_idf[self.docids[docid]][term]
+            except KeyError:
+                pass
+        return score
+
+    def tf_idf_query_old(self, docid, query) -> float:
         tfs = self.index_reader.get_document_vector(docid)
         wordcount = self.get_n_of_words_in_docid(docid)
         return sum([self.tf_idf_term(docid, term, wordcount=wordcount, tfs=tfs) for term in query])
@@ -214,6 +233,9 @@ class Models:
 
         self.t.start()
         # rocchio algorithm    
+        print(q0)
+        print(centroid_relevant_docs)
+        print(centroid_non_relevant_docs)
         q_mod = alpha * np.asarray(q0) + beta * np.asarray(centroid_relevant_docs) - gamma * np.asarray(centroid_non_relevant_docs)
         self.t.stop() 
         print(q_mod[:300])
