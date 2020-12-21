@@ -1,7 +1,7 @@
 # TREC-COVID Information Retrieval System
 ## Information Retrieval System for CORD-19 datasets for the course Information Retrieval at Radboud University
 
-This repository consists of the code-base for our custom information retrieval system oriented towards the CORD-19 TREC-COVID dataset. It uses Pyserini for the inverted index and pytrec_eval for evaluation.
+This repository consists of the code-base for our custom information retrieval system oriented towards the CORD-19 TREC-COVID dataset. It uses [Pyserini](https://github.com/castorini/pyserini) for the inverted index and [pytrec_eval](https://github.com/cvangysel/pytrec_eval) for evaluation.
 
 # Prerequisites
 
@@ -36,7 +36,7 @@ TOPICSFILE = "input/topics-rnd3.xml"
 
 ## Python package requirements
 
-The Python program uses 
+This Python program uses the quite specific Pyserini and pytrec_eval packages. Install using pip:
 
 Install requirements:
 ```bash
