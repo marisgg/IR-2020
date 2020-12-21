@@ -1,5 +1,6 @@
 .vs
 __pycache__
 lucene-index-cord19-abstract-2020-07-16
+lucene-index-cord19-abstract-2020-05-10
 ranking.txt
-output
+output/*

@@ -5,6 +5,9 @@ import json
 import xml.etree.ElementTree as ET
 import sys
 import heapq
+import pickle
+import time
+import os
 from pyserini.index import IndexReader
 from pyserini.search import SimpleSearcher
 from pyserini.analysis import Analyzer, get_lucene_analyzer
@@ -13,12 +16,10 @@ import pytrec_eval
 from output import write_output
 from models import Models
 from index_trec import Index, InvertedList
-import pickle
-import time
 
-lucene_index = "lucene-index-cord19-abstract-2020-07-16"
-qrelfile = "input/qrels-covid_d5_j0.5-5.txt"
-topicsfile = "input/topics-rnd5.xml"
+LUCENE_INDEX = "lucene-index-cord19-abstract-2020-07-16"
+QRELFILE = "input/qrels-covid_d5_j0.5-5.txt"
+TOPICSFILE = "input/topics-rnd5.xml"
 
 def dummy_document_at_a_time(query, index, models, k):
     L = []
@@ -173,45 +174,36 @@ b_param = 0.4
 def score_bm25(m_class, doc, query):
     return m_class.bm25_query_score(doc, query, k1=k1_param, b=b_param)
 
-def score_bm25_query(query, model, docs, models_class):
-    doc_scores = {}
-    for doc in docs:
-        score = models_class.bm25_docid_query(doc, query)
-        if score > 0.0:
-            doc_scores[doc] = score
-    return doc_scores
-
 def analyze_query(query):
     analyzer = Analyzer(get_lucene_analyzer())
     query = analyzer.analyze(query)
     return query
 
-def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, docidx_docid, rocchio=False, rocchio_rerank=False):
+def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, docidx_docid, rerank="none"):
     docs_list = []
-
+    if verbose:
+        print("Analyzing query..")
     query = analyze_query(query)
-    print(query)
-
+    if verbose:
+        print("Retrieving documents for query terms..")
     for term in query:
         docs = index_class.get_docids_from_postings(term, docidx_docid, debug=False)
+        print(term)
+        print(len(docs))
         docs_list.append(docs)
     docs = set(itertools.chain.from_iterable(docs_list))
+    if verbose:
+        print("Ranking..")
+    doc_scores = score_query_heap(query, ranking_function, docs, index_class, models_class, k)
+    # print(doc_scores)
 
-    if rocchio:
+    if rerank != "none":
         if verbose:
-            print("Using Rocchio as primary ranking function.")
-         # during testing, take random set of 100 documents
-        top_k_docs = index_class.get_docids(k)
-        
-        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
-    else:
-        doc_scores = score_query_heap(query, ranking_function, docs, index_class, models_class, k)
-
-    if rocchio_rerank:
-        if verbose:
-            print("Using Rocchio for reranking")
-        top_k_docs = list(map(lambda x : x[1], doc_scores[:k]))
-        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs)
+            print("Using {0} for reranking".format(rerank))
+        top_k_docs = list(map(lambda x : x[1], doc_scores))
+        # print(top_k_docs)
+        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs, rerank)
+        doc_scores = sorted([(v, k) for k, v in doc_scores.items()], key=lambda item : item[0], reverse=True)
 
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
     ## Assume that the top-k ranked documents are relevant. 
@@ -241,68 +233,69 @@ def pytrec_evaluation(runfile, qrelfile, measures = pytrec_eval.supported_measur
 
     return evaluator.evaluate(run)
 
-def cheat(filename, models, index, docidx_docid):
-    cheat_dict = {}
+def construct_lookup_table(filename, models, index, docidx_docid):
+    """ function to construct TF-IDF DOCID vector look-up table """
+    lookup_table = {}
     bar = Bar("Creating tf-idf dictionary", max=(index.get_max_docindex()))
     for doc in range(index.get_max_docindex()):
         try:
             docid = docidx_docid[doc][0]
             doclen = docidx_docid[doc][1]
-            cheat_dict[doc] = models.tf_idf_docid(docid, doclen)
+            lookup_table[doc] = models.tf_idf_docid(docid, doclen)
             bar.next()
         except:
             print("Error!")
             continue
     bar.finish()
     with open(filename, 'wb') as handle:
-        pickle.dump(cheat_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(lookup_table, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print("Dumped dictionary")
 
 def run():
     parser = argparse.ArgumentParser(description="TREC-COVID document ranker CLI")
-    parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true", default=False)
-    parser.add_argument("-cp", "--compute_pickle", action="store_true", default=False)
-    parser.add_argument("-n", "--n_queries", help="maximum number of queries to run", type=int, default=999)
-    parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
+    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true", default=False)
+    parser.add_argument("-cp", "--compute_pickle", help="Compute mapping from internal lucene id's to external docid's", action="store_true", default=False)
+    parser.add_argument("-n", "--n_queries", help="Naximum number of queries to run", type=int, default=999)
+    parser.add_argument("-m", "--model", help="which model used in ranking from {bm25, tf_idf}", default="bm25")
     parser.add_argument("-d", "--doc_at_a_time", help="Use document_at_a_time algorithm", action="store_true", default=False)
     parser.add_argument("-k", "--k_docs", help="Numer of documents to retrieve", type=int, default=100)
-    parser.add_argument("-r", "--rocchio_rerank", help="Use rocchio algorithm for reranking", action="store_true", default=False)
+    parser.add_argument("-r", "--rerank", help="Which rerank model to use 'rocchio', or 'ide'", default="none")
     args = parser.parse_args()
     global verbose
     verbose = args.verbose
     model = args.model
     doc_at_a_time = args.doc_at_a_time
     k = args.k_docs
-    rocchio_rerank = args.rocchio_rerank
+    rerank = args.rerank
 
-    index_reader = IndexReader(lucene_index)
-    searcher = SimpleSearcher(lucene_index)
-    models = Models(index_reader, qrelfile)
+    index_reader = IndexReader(LUCENE_INDEX)
+    searcher = SimpleSearcher(LUCENE_INDEX)
+    models = Models(index_reader, QRELFILE)
     trec_index = Index(index_reader, searcher)
+
+    if not os.path.exists('output'):
+        os.makedirs('output')
 
     if args.compute_pickle:
         print("Computing id index dict")
         docidx_docid = {docidx : (trec_index.get_docid_from_index(docidx), trec_index.get_n_of_words_in_inverted_list_doc(docidx)) for docidx in range(trec_index.get_max_docindex())}
-        with open('filename.pickle', 'wb') as handle:
+        with open('blob/mapping.pickle', 'wb') as handle:
             pickle.dump(docidx_docid, handle, protocol=pickle.HIGHEST_PROTOCOL)
     if True:
-        with open('filename.pickle', 'rb') as handle:
+        with open('blob/mapping.pickle', 'rb') as handle:
             print("Loading id index dict")
             docidx_docid = pickle.load(handle)
         print("Finished initializing id index dict")
 
-    topics = parse_topics(topicsfile)
+    topics = parse_topics(TOPICSFILE)
 
     rocchio = False
     if model == "bm25":
         rankfun = score_bm25
     elif model == "tf_idf":
         rankfun = score_tf_idf
-    elif model == "rocchio":
-        rankfun = None
-        rocchio = True
     else:
-        print("Model should be 'tf_idf', 'bm25' (default) or 'rocchio'!")
+        print("Model should be 'tf_idf' or 'bm25' (default)!")
         sys.exit(1)
 
     t = time.localtime()
@@ -323,12 +316,12 @@ def run():
             with open(rankfile, 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
                     for i, (score, docid) in enumerate(
-                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, docidx_docid, rocchio=rocchio, rocchio_rerank=rocchio_rerank), 1):
+                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, docidx_docid, rerank=rerank), 1):
                         outfile.write(write_output(idx, docid, i, score, "score_query"))
         finally:
             outfile.close()
 
-    results = pytrec_evaluation(rankfile, qrelfile)
+    results = pytrec_evaluation(rankfile, QRELFILE)
     with open(resultfile, 'w') as outjson:
         json.dump(results, outjson)
 
