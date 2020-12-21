@@ -10,23 +10,33 @@ In order to run the system, you need a pre-built Lucene index, qrelfile, and top
 This code snippets gathers files for challenge round five. These files are expected to be available by default.
 ```bash
 wget https://ir.nist.gov/covidSubmit/data/topics-rnd5.xml --directory-prefix=input/
-wget https://ir.nist.gov/covidSubmit/data/qrels-covid_d5_j0.5-5.txt -P --directory-prefix=input/
-wget https://www.dropbox.com/s/9hfowxi7zenuaay/lucene-index-cord19-abstract-2020-05-19.tar.gz && tar -xf lucene-index-cord19-abstract-2020-05-19.tar.gz && rm -f lucene-index-cord19-abstract-2020-07-16.tar.gz
+wget https://ir.nist.gov/covidSubmit/data/qrels-covid_d5_j0.5-5.txt --directory-prefix=input/
+wget https://www.dropbox.com/s/9hfowxi7zenuaay/lucene-index-cord19-abstract-2020-07-16.tar.gz \
+	&& tar -xf lucene-index-cord19-abstract-2020-07-16.tar.gz \
+	&& rm -f lucene-index-cord19-abstract-2020-07-16.tar.gz
 ```
 
 ## Other Rounds
 To gather files for round three:
 ```bash
 wget https://ir.nist.gov/covidSubmit/data/topics-rnd3.xml --directory-prefix=input/
-wget https://ir.nist.gov/covidSubmit/data/qrels-covid_d3_j0.5-3.txt -P --directory-prefix=input/
-wget https://www.dropbox.com/s/9hfowxi7zenuaay/lucene-index-cord19-abstract-2020-05-19.tar.gz && tar -xf lucene-index-cord19-abstract-2020-05-19.tar.gz && rm -f lucene-index-cord19-abstract-2020-05-19.tar.gz
+wget https://ir.nist.gov/covidSubmit/data/qrels-covid_d3_j0.5-3.txt --directory-prefix=input/
+wget https://www.dropbox.com/s/7bbz6pm4rduqvx3/lucene-index-cord19-abstract-2020-05-19.tar.gz \
+	&& tar -xf lucene-index-cord19-abstract-2020-05-19.tar.gz \
+	&& rm -f lucene-index-cord19-abstract-2020-05-19.tar.gz
 ```
 
-If using other index and topic/qrel files, you need to change the following global variables in trec_main.py:
+If using other index and topic/qrel files, you need to change the following global variables in trec_main.py to use the accompanying dataset files (round three in this case):
 
+```python
 LUCENE_INDEX = "lucene-index-cord19-abstract-2020-05-19"
 QRELFILE = "input/qrels-covid_d3_j0.5-3.txt"
 TOPICSFILE = "input/topics-rnd3.xml"
+```
+
+## Python package requirements
+
+The Python program uses 
 
 Install requirements:
 ```bash
