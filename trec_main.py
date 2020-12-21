@@ -211,6 +211,7 @@ def get_docs_and_score_query(query, ranking_function, index_class, models_class,
             print("Using Rocchio for reranking")
         top_k_docs = list(map(lambda x : x[1], doc_scores[:k]))
         doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs)
+        doc_scores = sorted([(v, k) for k, v in doc_scores.items()], key=lambda item : item[0], reverse=True)
 
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
     ## Assume that the top-k ranked documents are relevant. 
@@ -318,9 +319,13 @@ def run(k1=0.9, b=0.4):
         sys.exit(1)
 
     t = time.localtime()
-    current_time = time.strftime("%H:%M", t)
-    rankfile = "output/benchmark/ranking-{0}-{1}-k1{2}-b{3}.txt".format(model, current_time, k1_param, b_param)
-    resultfile = "output/benchmark/results-{0}-{1}-k1{2}-b{3}.json".format(model, current_time, k1_param, b_param)
+    current_time = time.strftime("%H.%M", t)
+    if rocchio_rerank:
+        formatstring = "output/benchmark/ranking-{0}-{1}-rocchio"
+    else:
+        formatstring = "output/benchmark/ranking-{0}-{1}"
+    rankfile = formatstring.format(model, current_time, k1_param, b_param) + ".txt"
+    resultfile = formatstring.format(model, current_time, k1_param, b_param) + ".json"
 
     if doc_at_a_time:
         try:

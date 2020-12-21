@@ -44,7 +44,7 @@ class Models:
         return sum(self.index_reader.get_document_vector(docid).values())
 
     def docid_length(self, docid):
-        return len([item for sublist in list(index_reader.get_term_positions(docid).values()) for item in sublist])
+        return len([item for sublist in list(self.index_reader.get_term_positions(docid).values()) for item in sublist])
 
     """
     Compute TF-IDF, which consists of the following two components:
@@ -262,8 +262,9 @@ class Models:
             self.create_collection_list(top_k_docs)
         print("in rocchio ranking")
         self.t.start()
-        if self.all_docs == [] :
-            self.all_docs = self.index_reader.get_docids() # ~ 30 seconds
+        # UNUSED:
+        # if self.all_docs == [] :
+            # self.all_docs = self.index_reader.get_docids() # ~ 30 seconds
         print("got all docs")
         self.t.stop()
         q_mod = self.rocchio_algorithm(qid, q0)
