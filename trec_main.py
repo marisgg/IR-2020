@@ -17,9 +17,9 @@ from output import write_output
 from models import Models
 from index_trec import Index, InvertedList
 
-lucene_index = "lucene-index-cord19-abstract-2020-07-16"
-qrelfile = "input/qrels-covid_d5_j0.5-5.txt"
-topicsfile = "input/topics-rnd5.xml"
+lucene_index = "lucene-index-cord19-abstract-2020-05-19"
+qrelfile = "input/qrels-covid_d3_j0.5-3.txt"
+topicsfile = "input/topics-rnd3.xml"
 
 def dummy_document_at_a_time(query, index, models, k):
     L = []
@@ -170,47 +170,32 @@ def score_tf_idf(m_class, doc, query):
     return m_class.tf_idf_query(doc, query)
 
 def score_bm25(m_class, doc, query):
-    return m_class.bm25_query_score(doc, query, k1=k1_param, b=b_param)
-
-def score_bm25_query(query, model, docs, models_class):
-    doc_scores = {}
-    for doc in docs:
-        score = models_class.bm25_docid_query(doc, query)
-        if score > 0.0:
-            doc_scores[doc] = score
-    return doc_scores
+    return m_class.bm25_query_score(doc, query)
 
 def analyze_query(query):
     analyzer = Analyzer(get_lucene_analyzer())
     query = analyzer.analyze(query)
     return query
 
-def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, docidx_docid, rocchio=False, rocchio_rerank=False):
+def get_docs_and_score_query(query, ranking_function, index_class, models_class, topic_id, k, docidx_docid, rerank="none"):
     docs_list = []
 
     query = analyze_query(query)
-    print(query)
-
     for term in query:
         docs = index_class.get_docids_from_postings(term, docidx_docid, debug=False)
+        print(term)
+        print(len(docs))
         docs_list.append(docs)
     docs = set(itertools.chain.from_iterable(docs_list))
 
-    if rocchio:
-        if verbose:
-            print("Using Rocchio as primary ranking function.")
-         # during testing, take random set of 100 documents
-        top_k_docs = index_class.get_docids(k)
-        
-        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs) #, ordered_doc_scores.keys()[:100])
-    else:
-        doc_scores = score_query_heap(query, ranking_function, docs, index_class, models_class, k)
+    doc_scores = score_query_heap(query, ranking_function, docs, index_class, models_class, k)
+    print(doc_scores)
 
-    if rocchio_rerank:
+    if rerank != "none":
         if verbose:
-            print("Using Rocchio for reranking")
+            print("Using {rerank} for reranking")
         top_k_docs = list(map(lambda x : x[1], doc_scores[:k]))
-        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs)
+        doc_scores = models_class.rocchio_ranking(topic_id, query, top_k_docs, rerank)
         doc_scores = sorted([(v, k) for k, v in doc_scores.items()], key=lambda item : item[0], reverse=True)
 
     ## reranking of the ranked documents (Rocchio algorithm) ## top-k ?
@@ -266,7 +251,7 @@ def run(k1=0.9, b=0.4):
     parser.add_argument("-m", "--model", help="which model used in ranking", default="bm25")
     parser.add_argument("-d", "--doc_at_a_time", help="Use document_at_a_time algorithm", action="store_true", default=False)
     parser.add_argument("-k", "--k_docs", help="Numer of documents to retrieve", type=int, default=100)
-    parser.add_argument("-r", "--rocchio_rerank", help="Use rocchio algorithm for reranking", action="store_true", default=False)
+    parser.add_argument("-r", "--rerank", help="which rerank model to use: 'none', 'rocchio', or 'ide'", default="none")
     global k1_param
     global b_param
     k1_param = k1
@@ -277,7 +262,7 @@ def run(k1=0.9, b=0.4):
     model = args.model
     doc_at_a_time = args.doc_at_a_time
     k = args.k_docs
-    rocchio_rerank = args.rocchio_rerank
+    rerank = args.rerank
 
     index_reader = IndexReader(lucene_index)
     searcher = SimpleSearcher(lucene_index)
@@ -311,21 +296,15 @@ def run(k1=0.9, b=0.4):
         rankfun = score_bm25
     elif model == "tf_idf":
         rankfun = score_tf_idf
-    elif model == "rocchio":
-        rankfun = None
-        rocchio = True
     else:
-        print("Model should be 'tf_idf', 'bm25' (default) or 'rocchio'!")
+        print("Model should be 'tf_idf' or 'bm25' (default)!")
         sys.exit(1)
 
     t = time.localtime()
     current_time = time.strftime("%H.%M", t)
-    if rocchio_rerank:
-        formatstring = "output/benchmark/ranking-{0}-{1}-rocchio"
-    else:
-        formatstring = "output/benchmark/ranking-{0}-{1}"
-    rankfile = formatstring.format(model, current_time, k1_param, b_param) + ".txt"
-    resultfile = formatstring.format(model, current_time, k1_param, b_param) + ".json"
+    formatstring = "output/benchmark/3-ranking-{0}-{1}-{2}"
+    rankfile = formatstring.format(model, current_time, rerank) + ".txt"
+    resultfile = formatstring.format(model, current_time, rerank) + ".json"
 
     if doc_at_a_time:
         try:
@@ -340,7 +319,7 @@ def run(k1=0.9, b=0.4):
             with open(rankfile, 'w') as outfile:
                 for idx in range(1, min(args.n_queries+1, len(topics)+1)):
                     for i, (score, docid) in enumerate(
-                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, docidx_docid, rocchio=rocchio, rocchio_rerank=rocchio_rerank), 1):
+                        get_docs_and_score_query(topics[str(idx)]["query"], rankfun, trec_index, models, idx, k, docidx_docid, rerank=rerank), 1):
                         outfile.write(write_output(idx, docid, i, score, "score_query"))
         finally:
             outfile.close()
